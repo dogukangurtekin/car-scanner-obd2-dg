@@ -63,10 +63,15 @@ export class BleTransport {
     const server = await this.dev.gatt.connect();
     let rx = null, tx = null;
     const seen = [];
-    for (const svc of await server.getPrimaryServices()) {
-      for (const ch of await svc.getCharacteristics()) {
+    let services = [];
+    try { services = await server.getPrimaryServices(); } catch {}
+    if (!services.length) {
+      for (const id of svc) { try { services.push(await server.getPrimaryService(id)); } catch {} }
+    }
+    for (const sv of services) {
+      for (const ch of await sv.getCharacteristics()) {
         const p = ch.properties;
-        seen.push(`${svc.uuid.slice(4, 8)}/${ch.uuid.slice(4, 8)}[${['notify', 'indicate', 'write', 'writeWithoutResponse'].filter((k) => p[k]).join(',')}]`);
+        seen.push(`${sv.uuid.slice(4, 8)}/${ch.uuid.slice(4, 8)}[${['notify', 'indicate', 'write', 'writeWithoutResponse'].filter((k) => p[k]).join(',')}]`);
         if (!rx && (p.notify || p.indicate)) rx = ch;
         if (!tx && (p.write || p.writeWithoutResponse)) tx = ch;
       }
