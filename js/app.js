@@ -1,8 +1,9 @@
-import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, fmt } from './pids.js?v=13';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=13';
-import { ELM } from './elm.js?v=13';
-import { dtcDescribe } from './dtc.js?v=13';
-import { drawGauge, drawLine, drawBars } from './charts.js?v=13';
+import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, fmt } from './pids.js?v=14';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=14';
+import { ELM } from './elm.js?v=14';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=14';
+import { dtcDescribe } from './dtc.js?v=14';
+import { drawGauge, drawLine, drawBars } from './charts.js?v=14';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -148,7 +149,8 @@ async function connect() {
     $('#stConn').classList.add('on');
     buildTiles(); buildChartPick(); buildInfo();
     pollLoop();
-    S.elm.readVin().then((v) => { S.vin = v; buildInfo(); }).catch(() => {});
+    S.online = null;
+    S.elm.readVin().then((v) => { S.vin = v; S.car = decodeVin(v); updateCar(); buildInfo(); }).catch(() => {});
     toast(`${S.defs.length} PID bulundu, okuma başladı`);
   } catch (e) {
     const msg = (e && (e.name ? e.name + ' — ' : '') + (e.message || '')) || String(e);
@@ -166,7 +168,8 @@ async function connect() {
 async function disconnect(silent) {
   S.running = false;
   try { await S.elm?.t.close(); } catch {}
-  S.elm = null;
+  S.elm = null; S.car = null; S.online = null; S.vin = '';
+  updateCar();
   $('#connect').classList.remove('hidden');
   $('#btnDisc').classList.add('hidden');
   $('#stConn').textContent = 'Bağlı değil';
@@ -213,11 +216,19 @@ function buildCharts() {
   });
 }
 
+function updateCar() {
+  const name = S.car ? carLabel(S.car, S.online) : 'OBD2';
+  $('#carName').textContent = name + ' · OBD Panosu';
+  document.title = name + ' OBD Panosu';
+}
+
 function buildInfo() {
   const e = S.elm;
   const rows = [
     ['ELM327', e?.info.elm || '—'],
     ['VIN', S.vin || '— (araç desteklemiyor olabilir)'],
+    ['Araç (VIN\'den)', S.car ? carLabel(S.car, S.online) + (S.car.model || S.online?.model ? '' : ' — model VIN\'den çıkarılamadı') : '—'],
+    ['Model kodu (7-8. hane)', S.car ? S.car.code : '—'],
     ['Protokol (ATDPN)', e?.info.protocol || '—'],
     ['Akü voltajı (ATRV)', e?.info.voltage ? e.info.voltage + ' V' : '—'],
     ['Desteklenen PID sayısı', S.defs.length + ' / ' + (e?.supported?.size ?? 0) + ' (panoda tanımlı / araçta toplam)'],
@@ -351,6 +362,15 @@ $('#btnRaw').addEventListener('click', async () => {
     if (!S.elm) break;
     try { td.textContent = (await S.elm.readRaw(td.id.slice(2))) ?? 'yanıt yok'; } catch { td.textContent = 'hata'; }
   }
+});
+$('#btnVinOnline').addEventListener('click', async () => {
+  if (!S.vin) return toast('VIN okunamadı', true);
+  if (!confirm('VIN (' + S.vin + ') model doğrulaması için ABD NHTSA sunucusuna (vpic.nhtsa.dot.gov) gönderilecek. Devam edilsin mi?')) return;
+  try {
+    S.online = await lookupNhtsa(S.vin);
+    if (!S.online.make && !S.online.model) toast('NHTSA bu VIN için kayıt bulamadı (Avrupa araçlarında normal)', true);
+    updateCar(); buildInfo();
+  } catch (e) { toast('Sorgulanamadı: ' + e.message, true); }
 });
 $('#btnReset').addEventListener('click', () => { trip = newTrip(); S.rows = []; });
 $('#btnCsv').addEventListener('click', async () => {

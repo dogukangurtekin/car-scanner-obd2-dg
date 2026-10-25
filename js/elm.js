@@ -1,5 +1,5 @@
-import { PIDS, PID_BY_ID, STATUS_PID } from './pids.js?v=13';
-import { decodeDtcs } from './dtc.js?v=13';
+import { PIDS, PID_BY_ID, STATUS_PID } from './pids.js?v=14';
+import { decodeDtcs } from './dtc.js?v=14';
 
 const ERR = /UNABLE|ERROR|BUS INIT|STOPPED|NO DATA|^\?$|CAN ERROR|DATA ERROR/i;
 
