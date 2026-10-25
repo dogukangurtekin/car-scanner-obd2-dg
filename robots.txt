@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /panel.html
+Sitemap: https://obd2.bilisimkod.com/sitemap.xml
