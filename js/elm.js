@@ -1,5 +1,5 @@
-import { PIDS, STATUS_PID } from './pids.js?v=16';
-import { decodeDtcs } from './dtc.js?v=16';
+import { PIDS, STATUS_PID } from './pids.js?v=17';
+import { decodeDtcs } from './dtc.js?v=17';
 
 const clean = (l) => l.replace(/^\d+:/, '').replace(/\s+/g, '').toUpperCase();
 const hexBytes = (s) => (s.match(/../g) || []).map((h) => parseInt(h, 16));
@@ -110,8 +110,9 @@ export class ELM {
   async firstPid(protocol) {
     let lines = await this.cmd('0100', 20000);
     if (findResp(lines, '4100') || protocol !== '0') return lines;
-    for (const p of ['6', '7', '8', '9', '5', '4', '3', '1']) {
+    for (const p of ['7', '6', '9', '8', '5', '4', '3', '1']) {
       this.log('sys', 'Protokol deneniyor: ' + p);
+      await this.cmd('ATPC', 3000).catch(() => {});
       await this.cmd('ATSP' + p, 4000);
       lines = await this.cmd('0100', 12000).catch(() => []);
       if (findResp(lines, '4100')) { this.info.forced = p; return lines; }
