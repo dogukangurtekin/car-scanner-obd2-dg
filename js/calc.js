@@ -53,8 +53,8 @@ export function show(p, v, st) {
 export function estimateMaf(v, disp) {
   const map = v['0B'], iat = v['0F'], rpm = v['0C'];
   if ([map, iat, rpm].some((x) => x == null)) return null;
-  // g/s = (RPM*MAP/IAT_K/2/60) * VE * hacim(L) * 28.97 / 8.314 / 1000 ... (VE 0.85)
-  return ((rpm * map) / (iat + 273.15) / 2 / 60) * 0.85 * disp * 28.97 / 8.314 / 1000;
+  // g/s = (devir/120) * hacim(L) * VE(0.85) * hava yoğunluğu (g/L = MAP[kPa] * 28.97 / (8.314 * T[K]))
+  return (rpm / 120) * disp * 0.85 * ((map * 28.97) / (8.314 * (iat + 273.15)));
 }
 
 // Anlık yakıt akışı (litre/saniye); hesaplanamazsa null

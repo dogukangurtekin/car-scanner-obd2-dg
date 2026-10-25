@@ -103,3 +103,4 @@ input[type=number], input[type=text] { background: var(--panel2); border: 1px so
   #senBody td, #ffBody td, #tripBody td, #m06Body td { padding: 5px 6px; font-size: 13px; }
 }
 @media (max-width: 720px) { header h1 { white-space: normal; line-height: 1.25; } }
+.tile.stale { opacity: .4; }

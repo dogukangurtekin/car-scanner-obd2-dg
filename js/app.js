@@ -1,12 +1,12 @@
-import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES } from './pids.js?v=17';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=17';
-import { ELM } from './elm.js?v=17';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=17';
-import { dtcDescribe } from './dtc.js?v=17';
-import { drawGauge, drawLine } from './charts.js?v=17';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=17';
-import { saveTrip } from './store.js?v=17';
-import { initExtra } from './extra.js?v=17';
+import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES } from './pids.js?v=18';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=18';
+import { ELM } from './elm.js?v=18';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=18';
+import { dtcDescribe } from './dtc.js?v=18';
+import { drawGauge, drawLine } from './charts.js?v=18';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=18';
+import { saveTrip } from './store.js?v=18';
+import { initExtra } from './extra.js?v=18';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -51,7 +51,11 @@ async function saveFile(name, text, mime = 'text/csv') {
 }
 
 const val = (key) => S.latest[key]?.v ?? null;
-const valsMap = () => Object.fromEntries(Object.entries(S.latest).map(([k, x]) => [k, x.v]));
+// Hesaplarda yalnızca son 10 sn içinde okunmuş değerler kullanılır (donmuş veriyle yanlış hesap yapılmasın)
+const valsMap = () => {
+  const t = now();
+  return Object.fromEntries(Object.entries(S.latest).filter(([, x]) => t - x.t < 10).map(([k, x]) => [k, x.v]));
+};
 
 // ---------- yolculuk istatistikleri ----------
 const newTrip = () => ({
@@ -95,8 +99,28 @@ function persistTrip() {
 }
 
 // ---------- veri girişi ----------
+// Adaptör/ECU kaynaklı tek örnek sıçramalarını eler: mutlak sınır + ardışık ikinci örnek doğrulaması
+const JUMP = { '0C': 3500, '0D': 45 };
+S.pend = {};
+function accept(key, v, t) {
+  if (key === '0C' && (v > 8500 || (v < 100 && (S.latest['0D']?.v ?? 0) > 10 && (S.latest['0C']?.v ?? 0) > 500))) return false;
+  const j = JUMP[key], prev = S.latest[key];
+  if (j && prev && t - prev.t < 3) {
+    if (Math.abs(v - prev.v) > j) {
+      const pend = S.pend[key];
+      if (pend != null && Math.abs(v - pend) <= j / 2) { delete S.pend[key]; return true; }
+      S.pend[key] = v;
+      return false;
+    }
+    delete S.pend[key];
+  }
+  return true;
+}
+
 function onValue(key, v) {
   const t = now();
+  S.lastT = t;
+  if (!accept(key, v, t)) return;
   S.latest[key] = { v, t };
   const h = (S.hist[key] ||= []);
   h.push([t, v]);
@@ -169,7 +193,7 @@ async function connect() {
     if (!S.defs.length) throw new Error('Araç hiçbir standart PID bildirmedi.');
     S.byId = new Map();
     for (const p of S.defs) (S.byId.get(p.id) ?? S.byId.set(p.id, []).get(p.id)).push(p);
-    S.latest = {}; S.hist = {}; S.status = null; S.trip = newTrip();
+    S.latest = {}; S.hist = {}; S.status = null; S.trip = newTrip(); S.pend = {}; S.lastT = now();
     S.running = true;
     $('#connect').classList.add('hidden');
     $('#btnDisc').classList.remove('hidden');
@@ -290,7 +314,10 @@ let tick = 0;
 function render() {
   tick++;
   const t = now(), st = S.settings;
-  $('#stRate').textContent = (S.running ? S.rate.toFixed(1) : '—') + ' PID/sn';
+  const stalled = S.running && S.lastT && t - S.lastT > 6;
+  $('#stRate').textContent = stalled ? 'Veri akışı durdu' : (S.running ? S.rate.toFixed(1) : '—') + ' PID/sn';
+  if (stalled && !S.stallWarned) { S.stallWarned = true; toast('Araçtan veri gelmiyor — kontak/adaptör bağlantısını kontrol edin', true); }
+  if (!stalled) S.stallWarned = false;
   const volt = val('42') ?? S.elm?.info.voltage;
   $('#stVolt').textContent = 'Akü ' + (volt ? volt.toFixed(1) + ' V' : '—');
   const sb = S.status?.bytes[0];
@@ -309,6 +336,7 @@ function render() {
       el.querySelector('.v span').textContent = txt;
       el.querySelector('.v small').textContent = unit;
       el.classList.toggle('bad', p.warn != null && v != null && v >= p.warn);
+      el.classList.toggle('stale', !!S.latest[p.key] && t - S.latest[p.key].t > 8);
       drawLine(el.querySelector('canvas'), S.hist[p.key] || [], { ...sparkOpts('#3fb6ff'), min: p.min, max: p.max });
     }
   } else if (S.tab === 'charts') {
