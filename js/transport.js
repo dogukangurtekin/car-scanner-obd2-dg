@@ -44,12 +44,21 @@ export class BleTransport {
   }
   static get supported() { return 'bluetooth' in navigator; }
   async open() {
-    this.dev = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: [...['fff0', 'ffe0', '18f0', 'ae00', 'ff00', 'ffe5', 'ffb0', 'fee0'].map((u) => `0000${u}-0000-1000-8000-00805f9b34fb`),
-        'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-        '6e400001-b5a3-f393-e0a9-e50e24dcca9e', 'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f'],
-    });
+    const u = (x) => `0000${x}-0000-1000-8000-00805f9b34fb`;
+    const svc = [u('fff0'), u('ffe0'), u('18f0'), u('ae00'), u('ff00'), 'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+      '49535343-fe7d-4ae5-8fa9-9fafd205e455', '6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
+    const attempts = [
+      { acceptAllDevices: true, optionalServices: svc },
+      { acceptAllDevices: true, optionalServices: svc.slice(0, 3) },
+      { filters: svc.map((s) => ({ services: [s] })), optionalServices: svc },
+      { filters: ['OBD', 'ELM', 'V-LINK', 'VLINK', 'Vgate', 'IOS', 'CAN', 'Carista', 'Viecar', 'KONNWEI', 'BLE'].map((namePrefix) => ({ namePrefix })), optionalServices: svc },
+    ];
+    let lastErr;
+    for (const [i, opt] of attempts.entries()) {
+      try { this.dev = await navigator.bluetooth.requestDevice(opt); this.attempt = i + 1; lastErr = null; break; }
+      catch (e) { lastErr = e; if (!/pars|payload|TypeError/i.test(e.name + ' ' + e.message)) break; }
+    }
+    if (lastErr) throw lastErr;
     this.dev.addEventListener('gattserverdisconnected', () => this.onClose());
     const server = await this.dev.gatt.connect();
     let rx = null, tx = null;
