@@ -10,7 +10,7 @@
 </head>
 <body>
 <header>
-  <h1>Golf 5 OBD Panosu <small>1.6 FSI · ELM327 · v7</small></h1>
+  <h1>Golf 5 OBD Panosu <small>1.6 FSI · ELM327 · v8</small></h1>
   <span class="pill" id="stConn">Bağlı değil</span>
   <span class="pill mil" id="stMil" title="Motor arıza lambası">MIL —</span>
   <span class="pill" id="stVolt">Akü —</span>
@@ -42,6 +42,7 @@
         <select id="selFast"><option value="1">Açık</option><option value="0">Kapalı (uyumsuz klonlar)</option></select></label>
       <button class="btn" id="btnConn" style="align-self:flex-end">Bağlan</button>
     </div>
+    <pre id="dbg" style="font:12px ui-monospace,Consolas,monospace;color:var(--muted);white-space:pre-wrap;margin:8px 0 0"></pre>
     <p id="connMsg" style="color:var(--warn);font-weight:600"></p>
     <p id="connHelp">Klasik BT için: önce Windows'ta ELM327'yi eşleştirin (PIN 1234 / 0000), kontağı açın, sonra "Bağlan" → sanal COM portunu seçin. Chrome veya Edge (masaüstü) gerekir.</p>
   </section>

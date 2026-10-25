@@ -111,8 +111,14 @@ async function pollLoop() {
 }
 
 // ---------- bağlantı ----------
+const dbg = (m) => { const d = $('#dbg'); if (d) d.textContent += new Date().toLocaleTimeString() + ' ' + m + '\n'; };
+window.addEventListener('error', (e) => dbg('JS hatası: ' + e.message));
+window.addEventListener('unhandledrejection', (e) => dbg('Yakalanmamış hata: ' + (e.reason?.message || e.reason)));
+
 async function connect() {
   const kind = $('#selTransport').value;
+  $('#dbg').textContent = '';
+  dbg('Bağlan basıldı, tür=' + kind);
   let tr;
   try {
     if (kind === 'serial') {
@@ -126,7 +132,9 @@ async function connect() {
     $('#connMsg').textContent = kind === 'ble' ? 'Açılan listeden ELM327 cihazınızı seçin…' : '';
     $('#stConn').textContent = 'Bağlanıyor…';
     S.elm = new ELM(tr, termLog);
-    await tr.open();
+    const stepTimer = setInterval(() => tr.step && dbg('adım: ' + tr.step), 700);
+    try { await tr.open(); } finally { clearInterval(stepTimer); }
+    dbg('open() tamam, ELM başlatılıyor');
     tr.onClose = () => { if (S.running) { toast('Bağlantı koptu', true); disconnect(true); } };
     const sup = await S.elm.init({ protocol: $('#selProto').value, fast: $('#selFast').value === '1' });
     S.defs = PIDS.filter((p) => sup.has(p.id));
@@ -143,6 +151,7 @@ async function connect() {
     toast(`${S.defs.length} PID bulundu, okuma başladı`);
   } catch (e) {
     const msg = (e && (e.name ? e.name + ' — ' : '') + (e.message || '')) || String(e);
+    dbg('HATA: ' + (typeof e) + ' ' + JSON.stringify(e && e.name) + ' ' + msg);
     const full = msg + (tr?.step ? ' [adım: ' + tr.step + ']' : '');
     toast(full, true);
     $('#connMsg').textContent = 'Hata: ' + full;
