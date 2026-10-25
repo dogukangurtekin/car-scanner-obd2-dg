@@ -1,8 +1,8 @@
-import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js?v=9';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=9';
-import { ELM } from './elm.js?v=9';
-import { dtcDescribe } from './dtc.js?v=9';
-import { drawGauge, drawLine, drawBars } from './charts.js?v=9';
+import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js?v=10';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=10';
+import { ELM } from './elm.js?v=10';
+import { dtcDescribe } from './dtc.js?v=10';
+import { drawGauge, drawLine, drawBars } from './charts.js?v=10';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -84,9 +84,10 @@ async function pollLoop() {
   let cycle = 0, last = now(), count = 0, rateT = now();
   const status = S.elm.supported.has(STATUS_PID);
   while (S.running) {
-    for (const p of S.defs) {
+    const fastL = S.defs.filter((p) => p.fast), slowL = S.defs.filter((p) => !p.fast);
+    const order = slowL.length ? [...fastL, slowL[cycle % slowL.length]] : fastL;
+    for (const p of order) {
       if (!S.running) break;
-      if (!p.fast && cycle % 6) continue;
       try {
         const v = await S.elm.readPid(p.id);
         if (v != null) { onValue(p.id, v); count++; }
@@ -229,6 +230,13 @@ function buildInfo() {
 const val = (id) => S.latest[id]?.v ?? null;
 function sparkOpts(color) { return { tmin: now() - 60, tmax: now(), min: null, max: null, color, fill: true }; }
 
+const disp = {};
+function ease(k, target) {
+  if (target == null) return (disp[k] = null);
+  disp[k] = disp[k] == null ? target : disp[k] + (target - disp[k]) * 0.3;
+  return disp[k];
+}
+
 function render() {
   const t = now();
   $('#stRate').textContent = (S.running ? S.rate.toFixed(1) : '—') + ' PID/sn';
@@ -240,8 +248,8 @@ function render() {
   mil.classList.toggle('on', st != null && !!(st & 0x80));
 
   if (S.tab === 'dash') {
-    drawGauge($('#gRpm'), { value: val('0C'), min: 0, max: 7000, ticks: 7, unit: 'rpm', label: 'Motor Devri', warn: 6200 });
-    drawGauge($('#gSpd'), { value: val('0D'), min: 0, max: 240, ticks: 8, unit: 'km/h', label: 'Hız' });
+    drawGauge($('#gRpm'), { value: ease('rpm', val('0C')), min: 0, max: 7000, ticks: 7, unit: 'rpm', label: 'Motor Devri', warn: 6200 });
+    drawGauge($('#gSpd'), { value: ease('spd', val('0D')), min: 0, max: 240, ticks: 8, unit: 'km/h', label: 'Hız' });
     for (const p of S.defs) {
       const el = $('#tile' + p.id); if (!el) continue;
       const v = val(p.id);
@@ -287,7 +295,7 @@ function renderStats() {
   $('#rowCount').textContent = S.rows.length + ' kayıt';
 }
 
-const loop = () => setInterval(render, 120);
+const loop = () => setInterval(render, 60);
 
 // ---------- olaylar ----------
 $('#tabs').addEventListener('click', (e) => {

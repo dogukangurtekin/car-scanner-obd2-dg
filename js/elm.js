@@ -1,5 +1,5 @@
-import { PIDS, PID_BY_ID, STATUS_PID } from './pids.js?v=9';
-import { decodeDtcs } from './dtc.js?v=9';
+import { PIDS, PID_BY_ID, STATUS_PID } from './pids.js?v=10';
+import { decodeDtcs } from './dtc.js?v=10';
 
 const ERR = /UNABLE|ERROR|BUS INIT|STOPPED|NO DATA|^\?$|CAN ERROR|DATA ERROR/i;
 
@@ -62,7 +62,7 @@ export class ELM {
     this.fast = fast;
     const z = await this.cmd('ATZ', 8000).catch(() => []);
     this.info.elm = z.find((l) => /ELM|OBD/i.test(l)) || '';
-    for (const c of ['ATE0', 'ATL0', 'ATS0', 'ATH0', 'ATAT1', 'ATSP' + protocol]) await this.cmd(c, 4000);
+    for (const c of ['ATE0', 'ATL0', 'ATS0', 'ATH0', 'ATAT2', 'ATSP' + protocol]) await this.cmd(c, 4000);
     const supported = new Set();
     let next = true;
     for (const base of ['00', '20', '40', '60']) {
