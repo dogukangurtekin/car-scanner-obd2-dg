@@ -25,7 +25,7 @@ const T={
 document.querySelectorAll('button').forEach(b=>b.onclick=async()=>{
  const o=document.getElementById('out'); o.textContent='Deneniyor '+b.dataset.t+'…';
  try{const d=await navigator.bluetooth.requestDevice(T[b.dataset.t]); o.textContent='OK: '+(d.name||'(adsız)')+' id='+d.id;
-  try{const s=await d.gatt.connect(); const l=await s.getPrimaryServices(); o.textContent+='\nServisler: '+l.map(x=>x.uuid.slice(4,8)).join(', ');}catch(e){o.textContent+='\ngatt: '+e.name+' '+e.message}
+  try{const s=await d.gatt.connect(); let l=[]; try{l=await s.getPrimaryServices()}catch(e){o.textContent+='\ngetPrimaryServices hata: '+e.name} o.textContent+='\ngetPrimaryServices: '+l.length+' adet'; for(const id of ALL){try{const sv=await s.getPrimaryService(id); const cs=await sv.getCharacteristics(); o.textContent+='\nVAR '+id.slice(0,8)+': '+cs.map(c=>c.uuid.slice(4,8)+'['+['notify','indicate','write','writeWithoutResponse','read'].filter(k=>c.properties[k]).join(',')+']').join(' ');}catch(e){}} o.textContent+='\nbitti';}catch(e){o.textContent+='\ngatt: '+e.name+' '+e.message}
  }catch(e){o.textContent='HATA '+b.dataset.t+': '+e.name+' — '+e.message}
 });
 </script></body></html>
