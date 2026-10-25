@@ -142,8 +142,11 @@ async function connect() {
     S.elm.readVin().then((v) => { S.vin = v; buildInfo(); }).catch(() => {});
     toast(`${S.defs.length} PID bulundu, okuma başladı`);
   } catch (e) {
-    toast(e.message || String(e), true);
-    $('#connMsg').textContent = 'Hata: ' + (e.name ? e.name + ' — ' : '') + (e.message || e);
+    const msg = (e && (e.name ? e.name + ' — ' : '') + (e.message || '')) || String(e);
+    const full = msg + (tr?.step ? ' [adım: ' + tr.step + ']' : '');
+    toast(full, true);
+    $('#connMsg').textContent = 'Hata: ' + full;
+    $('#connMsg').scrollIntoView({ block: 'center' });
     try { await tr?.close(); } catch {}
     S.elm = null;
     $('#stConn').textContent = 'Bağlı değil';

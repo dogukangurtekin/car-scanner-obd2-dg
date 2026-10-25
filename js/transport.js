@@ -54,20 +54,24 @@ export class BleTransport {
       { filters: ['OBD', 'ELM', 'V-LINK', 'VLINK', 'Vgate', 'IOS', 'CAN', 'Carista', 'Viecar', 'KONNWEI', 'BLE'].map((namePrefix) => ({ namePrefix })), optionalServices: svc },
     ];
     let lastErr;
+    this.step = 'cihaz seçimi (requestDevice)';
     for (const [i, opt] of attempts.entries()) {
       try { this.dev = await navigator.bluetooth.requestDevice(opt); this.attempt = i + 1; lastErr = null; break; }
       catch (e) { lastErr = e; if (!/pars|payload|TypeError/i.test(e.name + ' ' + e.message)) break; }
     }
     if (lastErr) throw lastErr;
     this.dev.addEventListener('gattserverdisconnected', () => this.onClose());
+    this.step = 'GATT bağlantısı';
     const server = await this.dev.gatt.connect();
     let rx = null, tx = null;
     const seen = [];
+    this.step = 'servis arama';
     let services = [];
     try { services = await server.getPrimaryServices(); } catch {}
     if (!services.length) {
       for (const id of svc) { try { services.push(await server.getPrimaryService(id)); } catch {} }
     }
+    this.step = 'karakteristik okuma';
     for (const sv of services) {
       for (const ch of await sv.getCharacteristics()) {
         const p = ch.properties;
@@ -81,7 +85,9 @@ export class BleTransport {
     this.tx = tx;
     const dec = new TextDecoder();
     rx.addEventListener('characteristicvaluechanged', (e) => this.onData(dec.decode(e.target.value)));
+    this.step = 'bildirim açma (startNotifications)';
     await rx.startNotifications();
+    this.step = 'hazır';
   }
   async write(s) {
     const data = new TextEncoder().encode(s);
