@@ -46,10 +46,9 @@ export class BleTransport {
   async open() {
     this.dev = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: [0xfff0, 0xffe0, 0x18f0, 0xae00, 0xff00, 0xffe5, 0xffb0, 0xfee0, 0x1800, 0x1801, 0x180a,
+      optionalServices: [...['fff0', 'ffe0', '18f0', 'ae00', 'ff00', 'ffe5', 'ffb0', 'fee0'].map((u) => `0000${u}-0000-1000-8000-00805f9b34fb`),
         'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-        '6e400001-b5a3-f393-e0a9-e50e24dcca9e', 'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
-        '0000fff0-0000-1000-8000-00805f9b34fb', '0000ffe0-0000-1000-8000-00805f9b34fb'],
+        '6e400001-b5a3-f393-e0a9-e50e24dcca9e', 'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f'],
     });
     this.dev.addEventListener('gattserverdisconnected', () => this.onClose());
     const server = await this.dev.gatt.connect();
