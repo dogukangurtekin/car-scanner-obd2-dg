@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BLE Test</title>
+<style>body{font:16px system-ui;background:#0d1117;color:#e6edf3;padding:16px}button{display:block;width:100%;margin:8px 0;padding:14px;font-size:16px;border-radius:8px;border:0;background:#3fb6ff}pre{white-space:pre-wrap;background:#161b22;padding:10px;border-radius:8px}</style></head>
+<body>
+<h3>BLE test (v5)</h3>
+<div id="env"></div>
+<button data-t="1">1) acceptAllDevices (servis yok)</button>
+<button data-t="2">2) acceptAllDevices + FFF0 servisi</button>
+<button data-t="3">3) filters: namePrefix OBD + FFF0</button>
+<button data-t="4">4) acceptAllDevices + 5 servis</button>
+<pre id="out">Bir düğmeye basın.</pre>
+<script>
+const u=x=>`0000${x}-0000-1000-8000-00805f9b34fb`;
+document.getElementById('env').textContent='bluetooth: '+('bluetooth' in navigator)+' | '+navigator.userAgent.slice(0,90);
+const T={
+1:{acceptAllDevices:true},
+2:{acceptAllDevices:true,optionalServices:[u('fff0')]},
+3:{filters:[{namePrefix:'OBD'}],optionalServices:[u('fff0')]},
+4:{acceptAllDevices:true,optionalServices:[u('fff0'),u('ffe0'),u('18f0'),u('ae00'),u('ff00')]},
+};
+document.querySelectorAll('button').forEach(b=>b.onclick=async()=>{
+ const o=document.getElementById('out'); o.textContent='Deneniyor '+b.dataset.t+'…';
+ try{const d=await navigator.bluetooth.requestDevice(T[b.dataset.t]); o.textContent='OK: '+(d.name||'(adsız)')+' id='+d.id;
+  try{const s=await d.gatt.connect(); const l=await s.getPrimaryServices(); o.textContent+='\nServisler: '+l.map(x=>x.uuid.slice(4,8)).join(', ');}catch(e){o.textContent+='\ngatt: '+e.name+' '+e.message}
+ }catch(e){o.textContent='HATA '+b.dataset.t+': '+e.name+' — '+e.message}
+});
+</script></body></html>
