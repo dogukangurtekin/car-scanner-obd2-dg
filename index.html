@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golf 5 OBD Panosu</title>
+<meta name="description" content="ELM327 ile Golf 5 1.6 FSI canlı OBD2 verileri, grafikler ve arıza kodları">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%233fb6ff'/%3E%3Cpath d='M8 20a8 8 0 1 1 16 0' stroke='%23041220' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <h1>Golf 5 OBD Panosu <small>1.6 FSI · ELM327</small></h1>
+  <span class="pill" id="stConn">Bağlı değil</span>
+  <span class="pill mil" id="stMil" title="Motor arıza lambası">MIL —</span>
+  <span class="pill" id="stVolt">Akü —</span>
+  <span class="pill" id="stRate">— PID/sn</span>
+  <button class="btn danger hidden" id="btnDisc">Bağlantıyı kes</button>
+</header>
+<nav id="tabs">
+  <button data-tab="dash" class="active">Gösterge</button>
+  <button data-tab="charts">Grafikler</button>
+  <button data-tab="stats">İstatistik</button>
+  <button data-tab="dtc">Arıza Kodları</button>
+  <button data-tab="info">Araç Bilgisi</button>
+  <button data-tab="term">Terminal</button>
+</nav>
+<main>
+  <section class="card" id="connect">
+    <div class="row">
+      <label class="f">Bağlantı türü
+        <select id="selTransport">
+          <option value="serial">Klasik Bluetooth / USB (Web Serial)</option>
+          <option value="ble">BLE ELM327 (Web Bluetooth)</option>
+          <option value="sim">Demo (araç gerekmez)</option>
+        </select></label>
+      <label class="f">Baud
+        <select id="selBaud"><option>38400</option><option>9600</option><option>115200</option><option>57600</option></select></label>
+      <label class="f">Protokol
+        <select id="selProto"><option value="0">Otomatik</option><option value="6">CAN 11bit 500k (Golf 5 2004+)</option><option value="5">KWP2000 fast</option><option value="3">ISO 9141-2</option></select></label>
+      <label class="f">Hızlı sorgu
+        <select id="selFast"><option value="1">Açık</option><option value="0">Kapalı (uyumsuz klonlar)</option></select></label>
+      <button class="btn" id="btnConn" style="align-self:flex-end">Bağlan</button>
+    </div>
+    <p id="connHelp">Klasik BT için: önce Windows'ta ELM327'yi eşleştirin (PIN 1234 / 0000), kontağı açın, sonra "Bağlan" → sanal COM portunu seçin. Chrome veya Edge (masaüstü) gerekir.</p>
+  </section>
+
+  <section id="tab-dash">
+    <div class="gauges">
+      <div class="card"><canvas id="gRpm"></canvas></div>
+      <div class="card"><canvas id="gSpd"></canvas></div>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="tab-charts" class="hidden">
+    <div class="card row">
+      <div class="chk" id="chartPick" style="flex:1"></div>
+      <label class="f">Zaman penceresi
+        <select id="selWin"><option value="30">30 sn</option><option value="60" selected>1 dk</option><option value="300">5 dk</option><option value="900">15 dk</option></select></label>
+    </div>
+    <div class="charts" id="charts"></div>
+  </section>
+
+  <section id="tab-stats" class="hidden">
+    <div class="kpis" id="kpis"></div>
+    <div class="two">
+      <div class="card"><h3>Devir dağılımı (süre %)</h3><canvas id="hRpm"></canvas></div>
+      <div class="card"><h3>Hız dağılımı (süre %)</h3><canvas id="hSpd"></canvas></div>
+    </div>
+    <div class="card row" style="margin-top:12px">
+      <button class="btn" id="btnCsv">Oturumu CSV indir</button>
+      <button class="btn alt" id="btnReset">İstatistikleri sıfırla</button>
+      <span class="pill" id="rowCount">0 kayıt</span>
+    </div>
+  </section>
+
+  <section id="tab-dtc" class="hidden">
+    <div class="card">
+      <div class="row">
+        <button class="btn" id="btnDtc">Arıza kodlarını oku</button>
+        <button class="btn danger" id="btnDtcClr">Kodları sil</button>
+        <span class="pill" id="dtcCount">—</span>
+      </div>
+      <table style="margin-top:12px"><thead><tr><th>Kod</th><th>Açıklama</th></tr></thead><tbody id="dtcBody"><tr><td colspan="2" style="color:var(--muted)">Henüz okunmadı.</td></tr></tbody></table>
+      <p style="color:var(--muted);font-size:13px">Silme, motor arıza lambasını ve kayıtlı donmuş verileri/hazır durumlarını sıfırlar; arıza sürüyorsa kod geri gelir.</p>
+    </div>
+  </section>
+
+  <section id="tab-info" class="hidden">
+    <div class="card">
+      <table><tbody id="infoBody"></tbody></table>
+      <h3 style="margin-top:16px">Desteklenen PID'ler</h3>
+      <table><thead><tr><th>PID</th><th>Ad</th><th>Anlık</th></tr></thead><tbody id="pidBody"></tbody></table>
+    </div>
+  </section>
+
+  <section id="tab-term" class="hidden">
+    <div class="card">
+      <div id="term"></div>
+      <form class="row" id="termForm" style="margin-top:10px">
+        <input type="text" id="termIn" placeholder="Komut: ATRV, 010C, 03 …" autocomplete="off" style="flex:1;min-width:200px">
+        <button class="btn">Gönder</button>
+      </form>
+    </div>
+  </section>
+</main>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
