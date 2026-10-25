@@ -1,5 +1,5 @@
-import { PIDS, STATUS_PID } from './pids.js?v=15';
-import { decodeDtcs } from './dtc.js?v=15';
+import { PIDS, STATUS_PID } from './pids.js?v=16';
+import { decodeDtcs } from './dtc.js?v=16';
 
 const clean = (l) => l.replace(/^\d+:/, '').replace(/\s+/g, '').toUpperCase();
 const hexBytes = (s) => (s.match(/../g) || []).map((h) => parseInt(h, 16));
@@ -83,12 +83,12 @@ export class ELM {
     this.fast = fast;
     const z = await this.cmd('ATZ', 8000).catch(() => []);
     this.info.elm = z.find((l) => /ELM|OBD/i.test(l)) || '';
-    for (const c of ['ATE0', 'ATL0', 'ATS0', 'ATH0', 'ATAT2', 'ATSP' + protocol]) await this.cmd(c, 4000);
+    for (const c of ['ATE0', 'ATL0', 'ATS0', 'ATH0', 'ATAT2', 'ATSTFF', 'ATSP' + protocol]) await this.cmd(c, 4000);
     const supported = new Set();
     let next = true;
     for (const base of ['00', '20', '40', '60']) {
       if (!next) break;
-      const lines = await this.cmd('01' + base, 15000);
+      const lines = base === '00' ? await this.firstPid(protocol) : await this.cmd('01' + base, 15000);
       const b = findResp(lines, '41' + base);
       if (!b || b.length < 4) {
         if (base === '00') throw new Error('Araca bağlanılamadı: ' + (lines.join(' ') || 'yanıt yok') + ' (kontağı açtınız mı?)');
@@ -104,6 +104,20 @@ export class ELM {
     this.isCAN = /[6-9]/.test(dpn.replace(/^A/, ''));
     await this.refreshVoltage();
     return supported;
+  }
+
+  // İlk 0100 isteği; otomatik protokol başarısız olursa protokolleri tek tek dener
+  async firstPid(protocol) {
+    let lines = await this.cmd('0100', 20000);
+    if (findResp(lines, '4100') || protocol !== '0') return lines;
+    for (const p of ['6', '7', '8', '9', '5', '4', '3', '1']) {
+      this.log('sys', 'Protokol deneniyor: ' + p);
+      await this.cmd('ATSP' + p, 4000);
+      lines = await this.cmd('0100', 12000).catch(() => []);
+      if (findResp(lines, '4100')) { this.info.forced = p; return lines; }
+    }
+    await this.cmd('ATSP0', 4000).catch(() => {});
+    return lines;
   }
 
   async refreshVoltage() {
