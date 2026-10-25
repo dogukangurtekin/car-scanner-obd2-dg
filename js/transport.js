@@ -101,7 +101,7 @@ export class BleTransport {
 }
 
 // ---- Demo: ELM327 + Golf 5 1.6 FSI taklidi ----
-const SIM_PIDS = ['01', '04', '05', '06', '07', '0B', '0C', '0D', '0E', '0F', '10', '11', '1F', '21', '24', '2F', '31', '33', '42', '43', '46'];
+const SIM_PIDS = ['01', '03', '04', '05', '06', '07', '0A', '0B', '0C', '0D', '0E', '0F', '10', '11', '14', '15', '1C', '1F', '21', '23', '24', '2E', '2F', '30', '31', '33', '3C', '41', '42', '43', '45', '46', '4D', '4E'];
 const hex = (n, w = 2) => Math.max(0, Math.round(n)).toString(16).toUpperCase().padStart(w, '0').slice(-w);
 
 function supportMask(base) {
@@ -151,6 +151,49 @@ export class SimTransport {
     }
   }
   reply(c) {
+    const k = this.car();
+    const u16 = (v) => hex(v, 4);
+    const ascii = (s, n) => [...s.padEnd(n, '\0')].map((ch) => hex(ch.charCodeAt(0))).join('');
+    const q = c.length === 5 && c.startsWith('01') ? c.slice(0, 4) : c;
+    if (q.length === 4 && q.startsWith('01')) {
+      const id = q.slice(2), p = '41' + id;
+      switch (id) {
+        case '01': return p + (this.dtcCleared ? '00' : '81') + '07E521';
+        case '03': return p + '0200';
+        case '0A': return p + hex(80);
+        case '14': return p + hex(100 + 60 * Math.sin(k.t * 3)) + 'FF';
+        case '15': return p + hex(70) + 'FF';
+        case '1C': return p + '06';
+        case '23': return p + u16((6000 + k.load * 40) / 10);
+        case '24': return p + u16(32768 + 600 * Math.sin(k.t / 4)) + u16(40000 + 2000 * Math.sin(k.t));
+        case '2E': return p + hex(20);
+        case '30': return p + hex(25);
+        case '3C': return p + u16((380 + k.load * 3 + 40) * 10);
+        case '41': return p + '0007E500';
+        case '45': return p + hex(k.throttle * 2.55 * 0.8);
+        case '4D': return p + u16(this.dtcCleared ? 0 : 35);
+        case '4E': return p + u16(this.dtcCleared ? 12 : 240);
+        default: break;
+      }
+    }
+    if (/^02[0-9A-F]{2}00$/.test(c)) {
+      const id = c.slice(2, 4);
+      if (id === '02') return '4202000171';
+      const r = this.reply('01' + id);
+      return r.startsWith('41') ? '42' + id + '00' + r.slice(4) : 'NO DATA';
+    }
+    if (c === '07') return '47010300';
+    if (c === '0A') return '4A00';
+    if (c === '0600') return '460 0C0000000'.replace(' ', '');
+    if (c === '0601') return '46' + '01' + '200B154D10000000' + '01210B00AA00000F00';
+    if (c === '0602') return '46' + '02' + '200B02F600000300';
+    if (c === '0900') return '490054400000';
+    if (c === '0904') return '490401' + ascii('1K0907115AB', 16);
+    if (c === '0906') return '490601A1B2C3D4';
+    if (c === '090A') return '490A01' + ascii('ECM-ENGINE', 20);
+    return this.replyOld(c);
+  }
+  replyOld(c) {
     if (c === 'ATZ' || c === 'ATI') return 'ELM327 v1.5';
     if (c === 'ATDPN') return 'A6';
     if (c === 'ATRV') return this.car().volt.toFixed(1) + 'V';

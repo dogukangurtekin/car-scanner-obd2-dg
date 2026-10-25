@@ -1,18 +1,39 @@
-import { PIDS, PID_BY_ID, STATUS_PID } from './pids.js?v=14';
-import { decodeDtcs } from './dtc.js?v=14';
-
-const ERR = /UNABLE|ERROR|BUS INIT|STOPPED|NO DATA|^\?$|CAN ERROR|DATA ERROR/i;
+import { PIDS, STATUS_PID } from './pids.js?v=15';
+import { decodeDtcs } from './dtc.js?v=15';
 
 const clean = (l) => l.replace(/^\d+:/, '').replace(/\s+/g, '').toUpperCase();
+const hexBytes = (s) => (s.match(/../g) || []).map((h) => parseInt(h, 16));
+const toHex = (b) => b.map((x) => x.toString(16).toUpperCase().padStart(2, '0')).join(' ');
 
-// Satırlar içinde "41<pid>" ile başlayan ilk yanıtın veri baytlarını döndürür
+// Satırlar içinde prefix ile başlayan ilk yanıtın veri baytlarını döndürür
 function findResp(lines, prefix) {
   for (const raw of lines) {
     const l = clean(raw);
-    if (l.startsWith(prefix) && /^[0-9A-F]+$/.test(l)) return (l.slice(prefix.length).match(/../g) || []).map((h) => parseInt(h, 16));
+    if (l.startsWith(prefix) && /^[0-9A-F]+$/.test(l)) return hexBytes(l.slice(prefix.length));
   }
   return null;
 }
+
+// Çok çerçeveli yanıtları (CAN "0:/1:" satırları veya K-line tekrarları) birleştirir
+function joinResp(lines, prefix) {
+  const out = [];
+  let started = false;
+  for (const raw of lines) {
+    const l = clean(raw);
+    if (!/^[0-9A-F]+$/.test(l) || /^[0-9A-F]{3}$/.test(l)) continue;
+    if (l.startsWith(prefix)) { out.push(...hexBytes(l.slice(prefix.length))); started = true; }
+    else if (started) out.push(...hexBytes(l));
+  }
+  return started ? out : null;
+}
+
+const maskIds = (b, start) => {
+  const ids = [];
+  const mask = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+  for (let i = 1; i <= 32; i++) if (mask & (1 << (32 - i))) ids.push(start + i);
+  return { ids, more: !!(mask & 1) };
+};
+const h2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
 
 export class ELM {
   constructor(transport, log) {
@@ -73,10 +94,9 @@ export class ELM {
         if (base === '00') throw new Error('Araca bağlanılamadı: ' + (lines.join(' ') || 'yanıt yok') + ' (kontağı açtınız mı?)');
         break;
       }
-      const mask = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
-      const start = parseInt(base, 16);
-      for (let i = 1; i <= 32; i++) if (mask & (1 << (32 - i))) supported.add((start + i).toString(16).toUpperCase().padStart(2, '0'));
-      next = !!(mask & 1);
+      const { ids, more } = maskIds(b, parseInt(base, 16));
+      ids.forEach((n) => supported.add(h2(n)));
+      next = more;
     }
     this.supported = supported;
     const dpn = (await this.cmd('ATDPN').catch(() => ['']))[0] || '';
@@ -92,32 +112,84 @@ export class ELM {
     return this.info.voltage;
   }
 
-  async readPid(id) {
+  // Mode 01 ham baytları (yanıt yoksa null)
+  async readBytes(id) {
     const lines = await this.cmd('01' + id + (this.fast ? '1' : ''), 3000);
-    const b = findResp(lines, '41' + id);
-    if (!b) return lines.some((l) => ERR.test(l)) ? null : null;
-    if (id === STATUS_PID) return b[0];
-    const p = PID_BY_ID[id];
-    return p ? p.f(b[0] ?? 0, b[1] ?? 0) : null;
+    return findResp(lines, '41' + id);
   }
-
-  async readDtcs() { return decodeDtcs(await this.cmd('03', 8000), this.isCAN); }
-  async clearDtcs() { return this.cmd('04', 8000); }
 
   async readRaw(id) {
     const b = findResp(await this.cmd('01' + id, 3000), '41' + id);
-    return b ? b.map((x) => x.toString(16).toUpperCase().padStart(2, '0')).join(' ') : null;
+    return b ? toHex(b) : null;
+  }
+
+  // PID 01 (MIL + monitör durumu) veya 41 (bu sürüş döngüsü): [A,B,C,D]
+  async readStatusBytes(id = '01') {
+    const b = findResp(await this.cmd('01' + id, 4000), '41' + id);
+    return b && b.length >= 4 ? b.slice(0, 4) : null;
+  }
+
+  // Arıza kodları: '03' kayıtlı, '07' bekleyen, '0A' kalıcı
+  async readDtcs(mode = '03') {
+    const prefix = h2(parseInt(mode, 16) + 0x40);
+    return decodeDtcs(await this.cmd(mode, 8000), this.isCAN, prefix);
+  }
+  async clearDtcs() { return this.cmd('04', 8000); }
+
+  // Freeze frame (Mode 02): { dtc, values: { id: bytes } }
+  async readFreezeFrame(ids) {
+    const d = findResp(await this.cmd('020200', 5000), '420200');
+    let dtc = null;
+    if (d && d.length >= 2 && (d[0] || d[1])) dtc = decodeDtcs(['43' + toHex(d.slice(0, 2)).replace(/ /g, '')], false)[0] || null;
+    const values = {};
+    for (const id of ids) {
+      if (id === '02') continue;
+      try {
+        const b = findResp(await this.cmd('02' + id + '00', 3000), '42' + id + '00');
+        if (b && b.length) values[id] = b;
+      } catch {}
+    }
+    return { dtc, values };
+  }
+
+  // Mode 06 test sonuçları → [mid, kayıtlar...] birleşik bayt dizisi
+  async readMode06(onProgress) {
+    const mids = [];
+    for (const base of ['00', '20', '40', '60', '80', 'A0', 'C0', 'E0']) {
+      const b = findResp(await this.cmd('06' + base, 5000), '46' + base);
+      if (!b || b.length < 4) break;
+      const { ids, more } = maskIds(b, parseInt(base, 16));
+      mids.push(...ids.map(h2));
+      if (!more) break;
+    }
+    const list = mids.filter((m) => parseInt(m, 16) % 0x20 !== 0);
+    const all = [];
+    for (const [i, mid] of list.entries()) {
+      onProgress?.(i + 1, list.length);
+      try {
+        const b = joinResp(await this.cmd('06' + mid, 6000), '46' + mid);
+        if (b && b.length) all.push(parseInt(mid, 16), ...b);
+      } catch {}
+    }
+    return { mids: list, bytes: all };
+  }
+
+  // Mode 09 bilgileri (04 kalibrasyon ID, 06 CVN, 0A ECU adı)
+  async readInfo(pid) {
+    const b = joinResp(await this.cmd('09' + pid, 8000), '49' + pid);
+    if (!b || !b.length) return null;
+    const data = b[0] <= 8 ? b.slice(1) : b; // ilk bayt öğe sayısı
+    if (pid === '06') return (toHex(data).match(/(?:[0-9A-F]{2} ?){1,4}/g) || []).map((s) => s.trim()).join('  ');
+    const txt = data.filter((c) => c >= 32 && c < 127).map((c) => String.fromCharCode(c)).join('').trim();
+    return txt || toHex(data);
   }
 
   async readVin() {
-    const lines = await this.cmd('0902', 8000);
-    const hex = lines.map(clean).filter((l) => !/^[0-9A-F]{3}$/.test(l)).join('');
-    const i = hex.indexOf('4902');
-    if (i < 0) return '';
-    const bytes = (hex.slice(i + 4).match(/../g) || []).map((h) => parseInt(h, 16));
-    if (bytes[0] === 1) bytes.shift();
+    const b = joinResp(await this.cmd('0902', 8000), '4902');
+    if (!b) return '';
+    const bytes = b[0] === 1 ? b.slice(1) : b;
     return bytes.filter((c) => c >= 48 && c < 91).map((c) => String.fromCharCode(c)).join('').slice(0, 17);
   }
 }
 
-export const supportedDefs = (set) => PIDS.filter((p) => set.has(p.id));
+export const supportedDefs = (set) => PIDS.filter((p) => set.has(p.id) || p.id === STATUS_PID);

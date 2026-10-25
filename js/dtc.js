@@ -1,10 +1,10 @@
 // Mode 03 yanıtını kod listesine çevirir ve yaygın kodlara Türkçe açıklama verir.
-export function decodeDtcs(lines, isCAN) {
+export function decodeDtcs(lines, isCAN, prefix = '43') {
   const out = [];
   for (const raw of lines) {
     const l = raw.replace(/^\d+:/, '').replace(/\s+/g, '').toUpperCase();
-    if (!l.startsWith('43') || !/^[0-9A-F]+$/.test(l)) continue;
-    const bytes = l.slice(2).match(/../g) || [];
+    if (!l.startsWith(prefix) || !/^[0-9A-F]+$/.test(l)) continue;
+    const bytes = l.slice(prefix.length).match(/../g) || [];
     // CAN'da 43'ten sonra kod sayısı baytı gelir
     const data = isCAN || bytes.length % 2 === 1 ? bytes.slice(1) : bytes;
     for (let i = 0; i + 1 < data.length; i += 2) {

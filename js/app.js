@@ -1,18 +1,21 @@
-import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, fmt } from './pids.js?v=14';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=14';
-import { ELM } from './elm.js?v=14';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=14';
-import { dtcDescribe } from './dtc.js?v=14';
-import { drawGauge, drawLine, drawBars } from './charts.js?v=14';
+import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES } from './pids.js?v=15';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=15';
+import { ELM } from './elm.js?v=15';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=15';
+import { dtcDescribe } from './dtc.js?v=15';
+import { drawGauge, drawLine } from './charts.js?v=15';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=15';
+import { saveTrip } from './store.js?v=15';
+import { initExtra } from './extra.js?v=15';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
 const COLORS = ['#3fb6ff', '#3ddc84', '#ffb020', '#c58cff', '#ff7aa8', '#4fe0d0', '#ff8f4f', '#a3d94a'];
 
 const S = {
-  elm: null, running: false, defs: [], latest: {}, hist: {}, rows: [],
+  elm: null, running: false, defs: [], byId: new Map(), latest: {}, hist: {}, status: null,
   chartSel: new Set(JSON.parse(localStorage.getItem('chartSel') || 'null') || DEFAULT_CHARTS),
-  tab: 'dash', pidCount: 0, rate: 0,
+  tab: 'dash', rate: 0, settings: loadSettings(), trip: null, car: null, vin: '', online: null, onSample: null,
 };
 
 // ---------- yardımcılar ----------
@@ -33,22 +36,32 @@ const termLog = (kind, text) => {
   t.scrollTop = t.scrollHeight;
 };
 
-// ---------- trip istatistikleri ----------
-const newTrip = () => ({
-  t: 0, dist: 0, fuel: 0, vmax: 0, rmax: 0, idle: 0, vsum: 0, vt: 0, cmax: -99,
-  rpmH: new Array(8).fill(0), spdH: new Array(8).fill(0), last: null,
-});
-let trip = newTrip();
-
-function estimateMaf(v) {
-  // MAF yoksa MAP/IAT/RPM'den yaklaşık (volumetrik verim 0.85, 1.6 L)
-  const map = v['0B'], iat = v['0F'], rpm = v['0C'];
-  if ([map, iat, rpm].some((x) => x == null)) return null;
-  return ((rpm * map) / (iat + 273.15) / 2 / 60) * 0.85 * 1.6 * 28.97 / 8.314 / 1000;
+// Metni dosya olarak kaydet: önce paylaşım menüsü (iOS), olmazsa indirme bağlantısı
+async function saveFile(name, text, mime = 'text/csv') {
+  try {
+    const file = new File([text], name, { type: mime });
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.append(a); a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
+  toast('Dosya hazırlandı: ' + name);
 }
 
+const val = (key) => S.latest[key]?.v ?? null;
+const valsMap = () => Object.fromEntries(Object.entries(S.latest).map(([k, x]) => [k, x.v]));
+
+// ---------- yolculuk istatistikleri ----------
+const newTrip = () => ({
+  id: Date.now(), start: Date.now(), t: 0, dist: 0, fuel: 0, vmax: 0, rmax: 0, idle: 0, vsum: 0, vt: 0, cmax: -99,
+  rpmH: new Array(8).fill(0), spdH: new Array(8).fill(0), inst: null, lph: null,
+});
+S.trip = newTrip();
+
 function tripStep(dt) {
-  const v = Object.fromEntries(Object.entries(S.latest).map(([k, x]) => [k, x.v]));
+  const trip = S.trip, v = valsMap();
   const spd = v['0D'], rpm = v['0C'];
   trip.t += dt;
   if (spd != null) {
@@ -63,52 +76,65 @@ function tripStep(dt) {
     if ((spd ?? 0) < 1 && rpm > 400) trip.idle += dt;
   }
   if (v['05'] != null) trip.cmax = Math.max(trip.cmax, v['05']);
-  const maf = v['10'] ?? estimateMaf(v);
-  if (maf != null && rpm > 400) {
-    trip.fuel += (maf / 14.7 / 745) * dt; // litre
-    trip.inst = spd > 3 ? ((maf / 14.7 / 745) * 3600 / spd) * 100 : null;
-    trip.lph = (maf / 14.7 / 745) * 3600;
+  const lps = fuelFlowLps(v, activeProfile(S.settings));
+  if (lps != null) {
+    trip.fuel += lps * dt;
+    trip.lph = lps * 3600;
+    trip.inst = spd > 3 ? (lps * 3600 / spd) * 100 : null;
   }
 }
 
+function persistTrip() {
+  const t = S.trip;
+  if (t.t < 20 || (t.dist < 0.05 && t.t < 60)) return;
+  saveTrip({
+    id: t.id, start: t.start, end: Date.now(), t: t.t, dist: t.dist, fuel: t.fuel, vsum: t.vsum, vt: t.vt,
+    idle: t.idle, vmax: t.vmax, rmax: t.rmax, price: S.settings.price, cur: S.settings.cur,
+    car: S.car ? carLabel(S.car, S.online) : activeProfile(S.settings).name,
+  });
+}
+
 // ---------- veri girişi ----------
-function onValue(id, val) {
+function onValue(key, v) {
   const t = now();
-  if (id === STATUS_PID) { S.latest[id] = { v: val, t }; return; }
-  S.latest[id] = { v: val, t };
-  const h = (S.hist[id] ||= []);
-  h.push([t, val]);
+  S.latest[key] = { v, t };
+  const h = (S.hist[key] ||= []);
+  h.push([t, v]);
   if (h.length > 6000) h.splice(0, 1500);
+  S.onSample?.(key, v, t);
 }
 
 async function pollLoop() {
   let cycle = 0, last = now(), count = 0, rateT = now();
   const status = S.elm.supported.has(STATUS_PID);
+  const ids = [...S.byId.keys()];
+  const fastIds = ids.filter((id) => S.byId.get(id).some((p) => p.fast));
+  const midIds = ids.filter((id) => !fastIds.includes(id) && S.byId.get(id).some((p) => p.mid));
+  const slowIds = ids.filter((id) => !fastIds.includes(id) && !midIds.includes(id));
   while (S.running) {
-    const fastL = S.defs.filter((p) => p.fast), slowL = S.defs.filter((p) => !p.fast);
-    const order = slowL.length ? [...fastL, slowL[cycle % slowL.length]] : fastL;
-    for (const p of order) {
+    const order = [...fastIds, ...(cycle % 3 === 0 ? midIds : []), ...(slowIds.length ? [slowIds[(cycle * 2) % slowIds.length], slowIds[(cycle * 2 + 1) % slowIds.length]] : [])];
+    for (const id of order) {
       if (!S.running) break;
       try {
-        const v = await S.elm.readPid(p.id);
-        if (v != null) { onValue(p.id, v); count++; }
+        const b = await S.elm.readBytes(id);
+        if (b) {
+          for (const p of S.byId.get(id)) onValue(p.key, p.f(b[0] ?? 0, b[1] ?? 0, b[2] ?? 0, b[3] ?? 0));
+          count++;
+        }
       } catch (e) {
         if (S.running) { termLog('sys', 'Hata: ' + e.message); await new Promise((r) => setTimeout(r, 300)); }
       }
     }
     if (status && cycle % 20 === 0) {
-      try { const v = await S.elm.readPid(STATUS_PID); if (v != null) onValue(STATUS_PID, v); } catch {}
+      try { const b = await S.elm.readStatusBytes('01'); if (b) S.status = { bytes: b, t: now() }; } catch {}
     }
     if (cycle % 40 === 0) S.elm.refreshVoltage().catch(() => {});
     const t = now();
     tripStep(Math.min(2, t - last)); last = t;
-    const row = { zaman: new Date().toISOString() };
-    for (const p of S.defs) row[`${p.name} (${p.unit})`] = S.latest[p.id]?.v != null ? +S.latest[p.id].v.toFixed(3) : '';
-    S.rows.push(row);
-    if (S.rows.length > 20000) S.rows.splice(0, 2000);
+    if (cycle % 40 === 39) persistTrip();
     if (t - rateT >= 2) { S.rate = count / (t - rateT); count = 0; rateT = t; }
     cycle++;
-    if (!S.defs.length) await new Promise((r) => setTimeout(r, 500));
+    if (!order.length) await new Promise((r) => setTimeout(r, 500));
   }
 }
 
@@ -141,16 +167,22 @@ async function connect() {
     const sup = await S.elm.init({ protocol: $('#selProto').value, fast: $('#selFast').value === '1' });
     S.defs = PIDS.filter((p) => sup.has(p.id));
     if (!S.defs.length) throw new Error('Araç hiçbir standart PID bildirmedi.');
-    S.latest = {}; S.hist = {}; S.rows = []; trip = newTrip();
+    S.byId = new Map();
+    for (const p of S.defs) (S.byId.get(p.id) ?? S.byId.set(p.id, []).get(p.id)).push(p);
+    S.latest = {}; S.hist = {}; S.status = null; S.trip = newTrip();
     S.running = true;
     $('#connect').classList.add('hidden');
     $('#btnDisc').classList.remove('hidden');
     $('#stConn').textContent = kind === 'sim' ? 'Demo' : 'Bağlı';
     $('#stConn').classList.add('on');
     buildTiles(); buildChartPick(); buildInfo();
+    X.onConnect();
     pollLoop();
     S.online = null;
-    S.elm.readVin().then((v) => { S.vin = v; S.car = decodeVin(v); updateCar(); buildInfo(); }).catch(() => {});
+    S.elm.readVin().then((v) => {
+      S.vin = v; S.car = decodeVin(v); updateCar(); buildInfo();
+      if (v) X.onVin(v, S.car ? carLabel(S.car, S.online) : '');
+    }).catch(() => {});
     toast(`${S.defs.length} PID bulundu, okuma başladı`);
   } catch (e) {
     const msg = (e && (e.name ? e.name + ' — ' : '') + (e.message || '')) || String(e);
@@ -166,7 +198,9 @@ async function connect() {
 }
 
 async function disconnect(silent) {
+  persistTrip();
   S.running = false;
+  X.onDisconnect();
   try { await S.elm?.t.close(); } catch {}
   S.elm = null; S.car = null; S.online = null; S.vin = '';
   updateCar();
@@ -178,12 +212,14 @@ async function disconnect(silent) {
 }
 
 // ---------- arayüz kurulumu ----------
+const gaugeable = (p) => !p.lbl; // metin değerli PID'ler kart/grafik olmaz
+
 function buildTiles() {
   const box = $('#tiles');
   box.innerHTML = '';
-  for (const p of S.defs) {
+  for (const p of S.defs.filter(gaugeable)) {
     const d = document.createElement('div');
-    d.className = 'card tile'; d.id = 'tile' + p.id;
+    d.className = 'card tile'; d.id = 'tile' + p.key;
     d.innerHTML = `<div class="n">${p.name}</div><div class="v"><span>—</span><small>${p.unit}</small></div><canvas></canvas>`;
     box.append(d);
   }
@@ -192,11 +228,11 @@ function buildTiles() {
 function buildChartPick() {
   const box = $('#chartPick');
   box.innerHTML = '';
-  for (const p of S.defs) {
+  for (const p of S.defs.filter(gaugeable)) {
     const l = document.createElement('label');
-    l.innerHTML = `<input type="checkbox" value="${p.id}" ${S.chartSel.has(p.id) ? 'checked' : ''}>${p.name}`;
+    l.innerHTML = `<input type="checkbox" value="${p.key}" ${S.chartSel.has(p.key) ? 'checked' : ''}>${p.name}`;
     l.firstChild.addEventListener('change', (e) => {
-      e.target.checked ? S.chartSel.add(p.id) : S.chartSel.delete(p.id);
+      e.target.checked ? S.chartSel.add(p.key) : S.chartSel.delete(p.key);
       localStorage.setItem('chartSel', JSON.stringify([...S.chartSel]));
       buildCharts();
     });
@@ -208,16 +244,16 @@ function buildChartPick() {
 function buildCharts() {
   const box = $('#charts');
   box.innerHTML = '';
-  S.defs.filter((p) => S.chartSel.has(p.id)).forEach((p, i) => {
+  S.defs.filter((p) => gaugeable(p) && S.chartSel.has(p.key)).forEach((p, i) => {
     const d = document.createElement('div');
-    d.className = 'card chart'; d.id = 'ch' + p.id; d.dataset.color = COLORS[i % COLORS.length];
+    d.className = 'card chart'; d.id = 'ch' + p.key; d.dataset.color = COLORS[i % COLORS.length];
     d.innerHTML = `<div class="hd"><b>${p.name}</b><span>—</span></div><canvas></canvas><div class="mm"></div>`;
     box.append(d);
   });
 }
 
 function updateCar() {
-  const name = S.car ? carLabel(S.car, S.online) : 'OBD2';
+  const name = S.car ? carLabel(S.car, S.online) : activeProfile(S.settings).name !== 'Varsayılan araç' && S.running ? activeProfile(S.settings).name : 'OBD2';
   $('#carName').textContent = name + ' · OBD Panosu';
   document.title = name + ' OBD Panosu';
 }
@@ -231,17 +267,16 @@ function buildInfo() {
     ['Model kodu (7-8. hane)', S.car ? S.car.code : '—'],
     ['Protokol (ATDPN)', e?.info.protocol || '—'],
     ['Akü voltajı (ATRV)', e?.info.voltage ? e.info.voltage + ' V' : '—'],
-    ['Desteklenen PID sayısı', S.defs.length + ' / ' + (e?.supported?.size ?? 0) + ' (panoda tanımlı / araçta toplam)'],
+    ['Desteklenen PID sayısı', S.defs.length + ' tanımlı değer / ' + (e?.supported?.size ?? 0) + ' PID (araçta toplam)'],
   ];
   $('#infoBody').innerHTML = rows.map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('');
-  $('#pidBody').innerHTML = S.defs.map((p) => `<tr><td>${p.id}</td><td>${p.name}</td><td id="pv${p.id}">—</td></tr>`).join('');
+  $('#pidBody').innerHTML = S.defs.map((p) => `<tr><td>${p.id}</td><td>${p.name}</td><td id="pv${p.key}">—</td></tr>`).join('');
   const extra = [...(e?.supported || [])].filter((id) => !PID_BY_ID[id] && id !== STATUS_PID).sort();
   $('#rawCount').textContent = extra.length + ' PID';
   $('#rawBody').innerHTML = extra.map((id) => `<tr><td>${id}</td><td>${EXTRA_NAMES[id] || 'Tanımsız / üreticiye özel'}</td><td id="rw${id}">—</td></tr>`).join('');
 }
 
 // ---------- çizim döngüsü ----------
-const val = (id) => S.latest[id]?.v ?? null;
 function sparkOpts(color) { return { tmin: now() - 60, tmax: now(), min: null, max: null, color, fill: true }; }
 
 const disp = {};
@@ -251,65 +286,51 @@ function ease(k, target) {
   return disp[k];
 }
 
+let tick = 0;
 function render() {
-  const t = now();
+  tick++;
+  const t = now(), st = S.settings;
   $('#stRate').textContent = (S.running ? S.rate.toFixed(1) : '—') + ' PID/sn';
   const volt = val('42') ?? S.elm?.info.voltage;
   $('#stVolt').textContent = 'Akü ' + (volt ? volt.toFixed(1) + ' V' : '—');
-  const st = val(STATUS_PID);
+  const sb = S.status?.bytes[0];
   const mil = $('#stMil');
-  mil.textContent = st == null ? 'MIL —' : st & 0x80 ? `MIL AÇIK · ${st & 0x7f} kod` : 'MIL kapalı';
-  mil.classList.toggle('on', st != null && !!(st & 0x80));
+  mil.textContent = sb == null ? 'MIL —' : sb & 0x80 ? `MIL AÇIK · ${sb & 0x7f} kod` : 'MIL kapalı';
+  mil.classList.toggle('on', sb != null && !!(sb & 0x80));
 
   if (S.tab === 'dash') {
+    const mph = st.speed === 'mph';
     drawGauge($('#gRpm'), { value: ease('rpm', val('0C')), min: 0, max: 7000, ticks: 7, unit: 'rpm', label: 'Motor Devri', warn: 6200 });
-    drawGauge($('#gSpd'), { value: ease('spd', val('0D')), min: 0, max: 240, ticks: 8, unit: 'km/h', label: 'Hız' });
+    const sv = val('0D');
+    drawGauge($('#gSpd'), { value: ease('spd', sv == null ? null : mph ? sv * 0.621371 : sv), min: 0, max: mph ? 150 : 240, ticks: mph ? 5 : 8, unit: mph ? 'mph' : 'km/h', label: 'Hız' });
     for (const p of S.defs) {
-      const el = $('#tile' + p.id); if (!el) continue;
-      const v = val(p.id);
-      el.querySelector('.v span').textContent = fmt(p, v);
+      const el = document.getElementById('tile' + p.key); if (!el) continue;
+      const v = val(p.key), [txt, unit] = show(p, v, st);
+      el.querySelector('.v span').textContent = txt;
+      el.querySelector('.v small').textContent = unit;
       el.classList.toggle('bad', p.warn != null && v != null && v >= p.warn);
-      drawLine(el.querySelector('canvas'), S.hist[p.id] || [], { ...sparkOpts('#3fb6ff'), min: p.min, max: p.max });
+      drawLine(el.querySelector('canvas'), S.hist[p.key] || [], { ...sparkOpts('#3fb6ff'), min: p.min, max: p.max });
     }
   } else if (S.tab === 'charts') {
+    if (tick % 2) return;
     const win = +$('#selWin').value;
     document.querySelectorAll('.chart').forEach((el) => {
-      const p = PID_BY_ID[el.id.slice(2)], h = S.hist[p.id] || [];
-      const vis = h.filter((x) => x[0] >= t - win);
-      el.querySelector('.hd span').textContent = fmt(p, val(p.id)) + ' ' + p.unit;
+      const p = PID_BY_KEY[el.id.slice(2)], h = S.hist[p.key] || [];
+      const vis = h.filter((x) => x[0] >= t - win).map((x) => [x[0], conv(p.unit, x[1], st)[0]]);
+      const [cur, unit] = show(p, val(p.key), st);
+      el.querySelector('.hd span').textContent = cur + ' ' + unit;
       if (vis.length) {
-        const vs = vis.map((x) => x[1]);
-        el.querySelector('.mm').textContent = `min ${fmt(p, Math.min(...vs))} · ort ${fmt(p, vs.reduce((a, b) => a + b, 0) / vs.length)} · maks ${fmt(p, Math.max(...vs))}`;
+        const vs = vis.map((x) => x[1]), f = (x) => x.toFixed(Math.abs(x) >= 100 ? 0 : 1);
+        el.querySelector('.mm').textContent = `min ${f(Math.min(...vs))} · ort ${f(vs.reduce((a, b) => a + b, 0) / vs.length)} · maks ${f(Math.max(...vs))}`;
       }
-      drawLine(el.querySelector('canvas'), h, { tmin: t - win, tmax: t, color: el.dataset.color, grid: true, labels: true, fill: true });
+      drawLine(el.querySelector('canvas'), vis, { tmin: t - win, tmax: t, color: el.dataset.color, grid: true, labels: true, fill: true });
     });
-  } else if (S.tab === 'stats') {
-    renderStats();
   } else if (S.tab === 'info') {
-    for (const p of S.defs) { const c = $('#pv' + p.id); if (c) c.textContent = fmt(p, val(p.id)) + ' ' + p.unit; }
+    for (const p of S.defs) { const c = document.getElementById('pv' + p.key); if (c) { const [x, u] = show(p, val(p.key), st); c.textContent = x + ' ' + u; } }
+  } else {
+    X.render(S.tab, tick);
   }
 }
-
-const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-function renderStats() {
-  const avgV = trip.vt ? trip.vsum / trip.vt : 0;
-  const avgC = trip.dist > 0.05 ? (trip.fuel / trip.dist) * 100 : null;
-  const k = [
-    ['Süre', dur(trip.t)], ['Mesafe', trip.dist.toFixed(2) + ' km'], ['Ort. hız', avgV.toFixed(0) + ' km/h'],
-    ['Maks. hız', trip.vmax.toFixed(0) + ' km/h'], ['Maks. devir', trip.rmax.toFixed(0) + ' rpm'],
-    ['Rölanti süresi', dur(trip.idle)], ['Yakıt (tahmini)', trip.fuel.toFixed(2) + ' L'],
-    ['Anlık tüketim', trip.inst != null ? trip.inst.toFixed(1) + ' L/100km' : trip.lph != null ? trip.lph.toFixed(1) + ' L/sa' : '—'],
-    ['Ort. tüketim', avgC != null ? avgC.toFixed(1) + ' L/100km' : '—'],
-    ['Maks. su sıc.', trip.cmax > -99 ? trip.cmax.toFixed(0) + ' °C' : '—'],
-  ];
-  $('#kpis').innerHTML = k.map(([n, v]) => `<div class="card kpi"><div class="n">${n}</div><div class="v">${v}</div></div>`).join('');
-  const pct = (a) => { const s = a.reduce((x, y) => x + y, 0) || 1; return a.map((x) => (x / s) * 100); };
-  drawBars($('#hRpm'), ['0-1k', '1-2k', '2-3k', '3-4k', '4-5k', '5-6k', '6-7k', '7k+'], pct(trip.rpmH), '#3fb6ff');
-  drawBars($('#hSpd'), ['0-25', '25-50', '50-75', '75-100', '100-125', '125-150', '150-175', '175+'], pct(trip.spdH), '#3ddc84');
-  $('#rowCount').textContent = S.rows.length + ' kayıt';
-}
-
-const loop = () => setInterval(render, 60);
 
 // ---------- olaylar ----------
 $('#tabs').addEventListener('click', (e) => {
@@ -317,6 +338,7 @@ $('#tabs').addEventListener('click', (e) => {
   S.tab = b.dataset.tab;
   document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('active', x === b));
   document.querySelectorAll('main > section[id^=tab-]').forEach((s) => s.classList.toggle('hidden', s.id !== 'tab-' + S.tab));
+  X.tabShown(S.tab);
   render();
 });
 $('#selTransport').addEventListener('change', () => {
@@ -332,14 +354,18 @@ $('#btnConn').addEventListener('click', connect);
 $('#btnDisc').addEventListener('click', () => disconnect());
 $('#selWin').addEventListener('change', render);
 
+// arıza kodları: kayıtlı + bekleyen + kalıcı
+const dtcRow = (c) => `<tr><td class="code">${c}</td><td>${dtcDescribe(c)}</td></tr>`;
+async function readCodes(mode) { try { return await S.elm.readDtcs(mode); } catch { return null; } }
 $('#btnDtc').addEventListener('click', async () => {
   if (!S.elm) return toast('Önce bağlanın', true);
   try {
-    const codes = await S.elm.readDtcs();
+    const codes = await S.elm.readDtcs('03');
     $('#dtcCount').textContent = codes.length ? codes.length + ' kod' : 'Kayıtlı arıza yok';
-    $('#dtcBody').innerHTML = codes.length
-      ? codes.map((c) => `<tr><td class="code">${c}</td><td>${dtcDescribe(c)}</td></tr>`).join('')
-      : '<tr><td colspan="2" style="color:var(--good)">Kayıtlı arıza kodu bulunmuyor.</td></tr>';
+    $('#dtcBody').innerHTML = codes.length ? codes.map(dtcRow).join('') : '<tr><td colspan="2" class="ok">Kayıtlı arıza kodu bulunmuyor.</td></tr>';
+    const pend = await readCodes('07'), perm = await readCodes('0A');
+    const fill = (id, a) => { $(id).innerHTML = a == null ? '<tr><td class="na">Araç desteklemiyor / yanıt yok</td></tr>' : a.length ? a.map(dtcRow).join('') : '<tr><td class="ok">Yok</td></tr>'; };
+    fill('#dtcPend', pend); fill('#dtcPerm', perm);
   } catch (e) { toast(e.message, true); }
 });
 $('#btnDtcClr').addEventListener('click', async () => {
@@ -372,23 +398,6 @@ $('#btnVinOnline').addEventListener('click', async () => {
     updateCar(); buildInfo();
   } catch (e) { toast('Sorgulanamadı: ' + e.message, true); }
 });
-$('#btnReset').addEventListener('click', () => { trip = newTrip(); S.rows = []; });
-$('#btnCsv').addEventListener('click', async () => {
-  if (!S.rows.length) return toast('Kayıt yok — önce bağlanıp veri toplayın', true);
-  const cols = Object.keys(S.rows[S.rows.length - 1]);
-  const csv = '﻿' + [cols.join(';'), ...S.rows.map((r) => cols.map((c) => String(r[c] ?? '').replace('.', ',')).join(';'))].join('\r\n');
-  const name = 'golf5-obd-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
-  try {
-    const file = new File([csv], name, { type: 'text/csv' });
-    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
-  } catch (e) { if (e.name === 'AbortError') return; }
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  const a = document.createElement('a');
-  a.href = url; a.download = name; a.style.display = 'none';
-  document.body.append(a); a.click();
-  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
-  toast(S.rows.length + ' satır CSV hazırlandı');
-});
 
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
@@ -399,6 +408,16 @@ function applyTheme(t) {
 $('#btnTheme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'));
 $('#btnTheme').textContent = document.documentElement.dataset.theme === 'light' ? '🌙 Gece' : '☀ Gündüz';
 
+window.addEventListener('pagehide', persistTrip);
+document.addEventListener('visibilitychange', () => { if (document.hidden) persistTrip(); });
+
+// ---------- ek özellikler (sensörler, istatistik, monitörler, performans, kayıt, ayarlar) ----------
+const X = initExtra({
+  S, $, toast, now, saveFile, val, valsMap, saveSettings,
+  resetTrip: () => { S.trip = newTrip(); },
+  persistTrip, updateCar,
+});
+
 if (!SerialTransport.supported && BleTransport.supported) {
   $('#selTransport').value = 'ble';
   $('#selTransport').dispatchEvent(new Event('change'));
@@ -407,4 +426,4 @@ if (!SerialTransport.supported && !BleTransport.supported) {
   $('#connHelp').textContent = 'Bu tarayıcı Web Serial/Bluetooth desteklemiyor. Chrome veya Edge (masaüstü, HTTPS) kullanın; demo modu yine çalışır.';
   $('#selTransport').value = 'sim';
 }
-loop();
+setInterval(render, 60);

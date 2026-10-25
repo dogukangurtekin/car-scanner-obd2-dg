@@ -84,3 +84,22 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; }
 }
 
 .themebtn { padding: 5px 11px; }
+input[type=number], input[type=text] { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+.chk input[type=checkbox] { display: inline-block; margin-right: 6px; }
+.ok { color: var(--good); } .badx { color: var(--bad); } .na { color: var(--muted); }
+.big { font-size: 20px; font-weight: 600; }
+#senBody td:last-child, #ffBody td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+#senBody tr.age td:first-child small { color: var(--muted); }
+#senBody .ms { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 6px; }
+.ptile .n { font-size: 13px; font-weight: 600; }
+.ptile .v { font-size: 26px; }
+.ptile .s { font-size: 12px; color: var(--muted); }
+.ptile.run { border-color: var(--warn); } .ptile.ready { border-color: var(--good); }
+.ptile.done { border-color: var(--accent); }
+.recrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+@media (max-width: 720px) {
+  nav button { padding: 7px 9px; font-size: 13px; }
+  .perf .tiles, #perfTiles { grid-template-columns: 1fr 1fr; }
+  #senBody td, #ffBody td, #tripBody td, #m06Body td { padding: 5px 6px; font-size: 13px; }
+}
+@media (max-width: 720px) { header h1 { white-space: normal; line-height: 1.25; } }

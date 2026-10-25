@@ -104,3 +104,37 @@ export function drawBars(canvas, labels, values, color) {
     ctx.fillText(labels[i], L + i * bw + bw / 2, h - B + 4);
   });
 }
+
+// Gün bazlı çubuk (mesafe) + çizgi (tüketim, ikinci eksen)
+export function drawCombo(canvas, labels, bars, line, colors) {
+  const f = fit(canvas); if (!f) return;
+  const { ctx, w, h } = f;
+  const L = 34, R = 34, B = 20, T = 8;
+  const pw = w - L - R, ph = h - T - B, n = Math.max(1, labels.length), bw = pw / n;
+  const bmax = Math.max(1e-9, ...bars) * 1.1, lmax = Math.max(1e-9, ...line.filter((x) => x != null)) * 1.1;
+  ctx.font = '10px system-ui'; ctx.fillStyle = css('--muted'); ctx.strokeStyle = css('--grid');
+  for (let i = 0; i <= 2; i++) {
+    const y = T + ph - (ph * i) / 2;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R, y); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(((bmax * i) / 2).toFixed(0), L - 4, y + 3);
+    ctx.textAlign = 'left'; ctx.fillText(((lmax * i) / 2).toFixed(1), w - R + 4, y + 3);
+  }
+  bars.forEach((v, i) => {
+    const bh = (v / bmax) * ph;
+    ctx.fillStyle = colors[0]; ctx.globalAlpha = 0.8;
+    ctx.fillRect(L + i * bw + bw * 0.15, T + ph - bh, bw * 0.7, bh);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = css('--muted'); ctx.textAlign = 'center';
+    if (n <= 10 || i % 2 === 0) ctx.fillText(labels[i], L + i * bw + bw / 2, h - 6);
+  });
+  ctx.strokeStyle = colors[1]; ctx.lineWidth = 2; ctx.beginPath();
+  let started = false;
+  line.forEach((v, i) => {
+    if (v == null) return;
+    const x = L + i * bw + bw / 2, y = T + ph - (v / lmax) * ph;
+    started ? ctx.lineTo(x, y) : ctx.moveTo(x, y); started = true;
+  });
+  ctx.stroke();
+  ctx.fillStyle = colors[1];
+  line.forEach((v, i) => { if (v != null) { ctx.beginPath(); ctx.arc(L + i * bw + bw / 2, T + ph - (v / lmax) * ph, 3, 0, 7); ctx.fill(); } });
+}
