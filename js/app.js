@@ -1,8 +1,8 @@
-import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js?v=11';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=11';
-import { ELM } from './elm.js?v=11';
-import { dtcDescribe } from './dtc.js?v=11';
-import { drawGauge, drawLine, drawBars } from './charts.js?v=11';
+import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js?v=12';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=12';
+import { ELM } from './elm.js?v=12';
+import { dtcDescribe } from './dtc.js?v=12';
+import { drawGauge, drawLine, drawBars } from './charts.js?v=12';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -359,6 +359,15 @@ $('#btnCsv').addEventListener('click', async () => {
   setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
   toast(S.rows.length + ' satır CSV hazırlandı');
 });
+
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $('#btnTheme').textContent = t === 'light' ? '🌙 Gece' : '☀ Gündüz';
+  try { localStorage.setItem('theme', t); } catch {}
+  render();
+}
+$('#btnTheme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'));
+$('#btnTheme').textContent = document.documentElement.dataset.theme === 'light' ? '🌙 Gece' : '☀ Gündüz';
 
 if (!SerialTransport.supported && BleTransport.supported) {
   $('#selTransport').value = 'ble';
