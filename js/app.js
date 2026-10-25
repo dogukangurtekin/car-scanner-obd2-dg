@@ -123,6 +123,7 @@ async function connect() {
       tr = new BleTransport();
     } else tr = new SimTransport();
     $('#btnConn').disabled = true;
+    $('#connMsg').textContent = kind === 'ble' ? 'Açılan listeden ELM327 cihazınızı seçin…' : '';
     $('#stConn').textContent = 'Bağlanıyor…';
     S.elm = new ELM(tr, termLog);
     await tr.open();
@@ -142,6 +143,7 @@ async function connect() {
     toast(`${S.defs.length} PID bulundu, okuma başladı`);
   } catch (e) {
     toast(e.message || String(e), true);
+    $('#connMsg').textContent = 'Hata: ' + (e.name ? e.name + ' — ' : '') + (e.message || e);
     try { await tr?.close(); } catch {}
     S.elm = null;
     $('#stConn').textContent = 'Bağlı değil';

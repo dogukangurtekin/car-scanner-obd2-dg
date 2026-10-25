@@ -46,21 +46,25 @@ export class BleTransport {
   async open() {
     this.dev = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: [0xfff0, 0xffe0, 0x18f0, 0xae00, 'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
-        '49535343-fe7d-4ae5-8fa9-9fafd205e455'],
+      optionalServices: [0xfff0, 0xffe0, 0x18f0, 0xae00, 0xff00, 0xffe5, 0xffb0, 0xfee0, 0x1800, 0x1801, 0x180a,
+        'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+        '6e400001-b5a3-f393-e0a9-e50e24dcca9e', 'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
+        '0000fff0-0000-1000-8000-00805f9b34fb', '0000ffe0-0000-1000-8000-00805f9b34fb'],
     });
     this.dev.addEventListener('gattserverdisconnected', () => this.onClose());
     const server = await this.dev.gatt.connect();
     let rx = null, tx = null;
+    const seen = [];
     for (const svc of await server.getPrimaryServices()) {
       for (const ch of await svc.getCharacteristics()) {
         const p = ch.properties;
+        seen.push(`${svc.uuid.slice(4, 8)}/${ch.uuid.slice(4, 8)}[${['notify', 'indicate', 'write', 'writeWithoutResponse'].filter((k) => p[k]).join(',')}]`);
         if (!rx && (p.notify || p.indicate)) rx = ch;
         if (!tx && (p.write || p.writeWithoutResponse)) tx = ch;
       }
       if (rx && tx) break;
     }
-    if (!rx || !tx) throw new Error('Uygun BLE servis/karakteristik bulunamadı (bu cihaz klasik Bluetooth olabilir).');
+    if (!rx || !tx) throw new Error('Uygun BLE servis/karakteristik bulunamadı. Bulunanlar: ' + (seen.join(' ') || 'yok'));
     this.tx = tx;
     const dec = new TextDecoder();
     rx.addEventListener('characteristicvaluechanged', (e) => this.onData(dec.decode(e.target.value)));
