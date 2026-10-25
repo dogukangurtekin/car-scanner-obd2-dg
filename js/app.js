@@ -332,6 +332,10 @@ $('#btnCsv').addEventListener('click', () => {
   URL.revokeObjectURL(a.href);
 });
 
+if (!SerialTransport.supported && BleTransport.supported) {
+  $('#selTransport').value = 'ble';
+  $('#selTransport').dispatchEvent(new Event('change'));
+}
 if (!SerialTransport.supported && !BleTransport.supported) {
   $('#connHelp').textContent = 'Bu tarayıcı Web Serial/Bluetooth desteklemiyor. Chrome veya Edge (masaüstü, HTTPS) kullanın; demo modu yine çalışır.';
   $('#selTransport').value = 'sim';
