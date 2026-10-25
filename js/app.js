@@ -1,12 +1,12 @@
-import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES } from './pids.js?v=18';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=18';
-import { ELM } from './elm.js?v=18';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=18';
-import { dtcDescribe } from './dtc.js?v=18';
-import { drawGauge, drawLine } from './charts.js?v=18';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=18';
-import { saveTrip } from './store.js?v=18';
-import { initExtra } from './extra.js?v=18';
+import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES } from './pids.js?v=19';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=19';
+import { ELM } from './elm.js?v=19';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=19';
+import { dtcDescribe } from './dtc.js?v=19';
+import { drawGauge, drawLine } from './charts.js?v=19';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=19';
+import { saveTrip } from './store.js?v=19';
+import { initExtra } from './extra.js?v=19';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -208,6 +208,7 @@ async function connect() {
       if (v) X.onVin(v, S.car ? carLabel(S.car, S.online) : '');
     }).catch(() => {});
     toast(`${S.defs.length} PID bulundu, okuma başladı`);
+    setTimeout(showTestResult, 3500);
   } catch (e) {
     const msg = (e && (e.name ? e.name + ' — ' : '') + (e.message || '')) || String(e);
     dbg('HATA: ' + (typeof e) + ' ' + JSON.stringify(e && e.name) + ' ' + msg);
@@ -227,12 +228,32 @@ async function disconnect(silent) {
   X.onDisconnect();
   try { await S.elm?.t.close(); } catch {}
   S.elm = null; S.car = null; S.online = null; S.vin = '';
+  $('#testCard').classList.add('hidden');
   updateCar();
   $('#connect').classList.remove('hidden');
   $('#btnDisc').classList.add('hidden');
   $('#stConn').textContent = 'Bağlı değil';
   $('#stConn').classList.remove('on');
   if (!silent) toast('Bağlantı kapatıldı');
+}
+
+// ---------- bağlantı testi sonucu kartı ----------
+const PROTO = { 1: 'SAE J1850 PWM', 2: 'SAE J1850 VPW', 3: 'ISO 9141-2', 4: 'ISO 14230-4 KWP (5 baud)', 5: 'ISO 14230-4 KWP (hızlı)', 6: 'CAN 11 bit · 500k', 7: 'CAN 29 bit · 500k', 8: 'CAN 11 bit · 250k', 9: 'CAN 29 bit · 250k' };
+function showTestResult() {
+  const e = S.elm, box = $('#testCard');
+  if (!S.running || !e) return;
+  const sb = S.status?.bytes[0], volt = e.info.voltage ?? val('42');
+  const rows = [
+    ['Adaptör bağlantısı', e.info.elm || 'ELM327'],
+    ['Araç protokolü', PROTO[(e.info.protocol || '').replace(/^A/, '')] || e.info.protocol || '—'],
+    ['Desteklenen sensör', S.defs.length + ' değer'],
+    ['Motor arıza lambası', sb == null ? '—' : sb & 0x80 ? `AÇIK · ${sb & 0x7f} kod` : 'Kapalı'],
+    ['Akü voltajı', volt ? Number(volt).toFixed(1) + ' V' : '—'],
+  ];
+  box.innerHTML = `<div class="row" style="justify-content:space-between"><b>✓ Bağlantı testi başarılı</b><button class="btn alt" id="testClose" type="button">Kapat</button></div>` +
+    `<table><tbody>${rows.map(([a, b]) => `<tr><td>${a}</td><td style="text-align:right;font-weight:600">${b}</td></tr>`).join('')}</tbody></table>`;
+  box.classList.remove('hidden');
+  $('#testClose').addEventListener('click', () => box.classList.add('hidden'));
 }
 
 // ---------- arayüz kurulumu ----------
@@ -453,5 +474,10 @@ if (!SerialTransport.supported && BleTransport.supported) {
 if (!SerialTransport.supported && !BleTransport.supported) {
   $('#connHelp').textContent = 'Bu tarayıcı Web Serial/Bluetooth desteklemiyor. Chrome veya Edge (masaüstü, HTTPS) kullanın; demo modu yine çalışır.';
   $('#selTransport').value = 'sim';
+}
+if (new URLSearchParams(location.search).has('demo')) {
+  $('#selTransport').value = 'sim';
+  $('#selTransport').dispatchEvent(new Event('change'));
+  $('#btnConn').click();
 }
 setInterval(render, 60);

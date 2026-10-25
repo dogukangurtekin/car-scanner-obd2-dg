@@ -11,7 +11,7 @@ ELM327 ile VW Golf 5 1.6 FSI için tarayıcıda çalışan canlı OBD2 panosu. B
 ```bash
 python -m http.server 8765
 ```
-`http://localhost:8765` → "Demo" ile deneyin.
+`http://localhost:8765` ana sayfa, `/panel.html` uygulama. `panel.html?demo=1` doğrudan demo modunu açar.
 
 ## Araca bağlanma
 1. ELM327'yi OBD2 soketine takın, kontağı açın (motor çalışması şart değil).

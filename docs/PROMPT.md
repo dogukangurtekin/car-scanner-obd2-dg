@@ -40,4 +40,4 @@ Diğer modlar: **03** kayıtlı arıza kodları, **04** silme, **0902** VIN, `AT
 - Ucuz v2.1 klonlar yavaş/yarım olabilir; hız tipik 8–15 PID/sn.
 
 ## Teslimat
-Statik dosyalar (`index.html`, `css/`, `js/`), GitHub repo, GitHub Actions ile alt alan adına otomatik dağıtım (SSH/rsync), HTTPS.
+Statik dosyalar (`index.html` ana sayfa, `panel.html` uygulama, `css/`, `js/`), GitHub repo, GitHub Actions ile alt alan adına otomatik dağıtım (SSH/rsync), HTTPS.
