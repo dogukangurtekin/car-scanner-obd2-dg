@@ -1,8 +1,8 @@
-import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js';
-import { ELM } from './elm.js';
-import { dtcDescribe } from './dtc.js';
-import { drawGauge, drawLine, drawBars } from './charts.js';
+import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js?v=9';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=9';
+import { ELM } from './elm.js?v=9';
+import { dtcDescribe } from './dtc.js?v=9';
+import { drawGauge, drawLine, drawBars } from './charts.js?v=9';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
