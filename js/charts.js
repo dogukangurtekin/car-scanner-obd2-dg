@@ -18,11 +18,12 @@ export function fit(canvas) {
 export function drawGauge(canvas, { value, min, max, unit, label, warn, ticks = 8, decimals = 0 }) {
   const f = fit(canvas); if (!f) return;
   const { ctx, w, h } = f;
-  const cx = w / 2, cy = h * 0.58, r = Math.min(w / 2, h * 0.62) - 14;
+  const cx = w / 2, cy = h * 0.58, r = Math.min(w / 2, h * 0.62) - Math.max(8, h * 0.05);
   const a0 = Math.PI * 0.8, a1 = Math.PI * 2.2;
   const frac = (v) => Math.min(1, Math.max(0, (v - min) / (max - min)));
   ctx.lineCap = 'round';
-  ctx.lineWidth = 14;
+  const lw = Math.max(7, r * 0.11);
+  ctx.lineWidth = lw;
   ctx.strokeStyle = css('--track');
   ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1); ctx.stroke();
   if (warn != null) {
@@ -35,18 +36,18 @@ export function drawGauge(canvas, { value, min, max, unit, label, warn, ticks = 
     ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + (a1 - a0) * frac(value)); ctx.stroke();
   }
   ctx.fillStyle = css('--muted');
-  ctx.font = '11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = (r < 100 ? 9 : 11) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (let i = 0; i <= ticks; i++) {
     const a = a0 + (a1 - a0) * (i / ticks), v = min + (max - min) * (i / ticks);
-    ctx.fillText(max > 1000 ? Math.round(v / 1000) : Math.round(v), cx + Math.cos(a) * (r - 24), cy + Math.sin(a) * (r - 24));
+    ctx.fillText(max > 1000 ? Math.round(v / 1000) : Math.round(v), cx + Math.cos(a) * (r - lw - 8), cy + Math.sin(a) * (r - lw - 8));
   }
   ctx.fillStyle = css('--text');
   ctx.font = '600 ' + Math.round(r * 0.42) + 'px system-ui';
   ctx.fillText(value == null ? '—' : value.toFixed(decimals), cx, cy + 4);
   ctx.fillStyle = css('--muted');
-  ctx.font = '13px system-ui';
+  ctx.font = (r < 100 ? 10 : 13) + 'px system-ui';
   ctx.fillText(unit, cx, cy + r * 0.34);
-  ctx.fillText(label, cx, h - 10);
+  ctx.fillText(label, cx, h - (r < 100 ? 4 : 10));
 }
 
 // series: [[t,v],...]; opts: {tmin,tmax,min,max,color,grid,labels,unit}

@@ -1,8 +1,8 @@
-import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js?v=10';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=10';
-import { ELM } from './elm.js?v=10';
-import { dtcDescribe } from './dtc.js?v=10';
-import { drawGauge, drawLine, drawBars } from './charts.js?v=10';
+import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js?v=11';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=11';
+import { ELM } from './elm.js?v=11';
+import { dtcDescribe } from './dtc.js?v=11';
+import { drawGauge, drawLine, drawBars } from './charts.js?v=11';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -343,15 +343,22 @@ $('#termForm').addEventListener('submit', async (e) => {
 });
 
 $('#btnReset').addEventListener('click', () => { trip = newTrip(); S.rows = []; });
-$('#btnCsv').addEventListener('click', () => {
-  if (!S.rows.length) return toast('Kayıt yok', true);
+$('#btnCsv').addEventListener('click', async () => {
+  if (!S.rows.length) return toast('Kayıt yok — önce bağlanıp veri toplayın', true);
   const cols = Object.keys(S.rows[S.rows.length - 1]);
-  const csv = [cols.join(';'), ...S.rows.map((r) => cols.map((c) => String(r[c] ?? '').replace('.', ',')).join(';'))].join('\r\n');
+  const csv = '﻿' + [cols.join(';'), ...S.rows.map((r) => cols.map((c) => String(r[c] ?? '').replace('.', ',')).join(';'))].join('
+');
+  const name = 'golf5-obd-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
+  try {
+    const file = new File([csv], name, { type: 'text/csv' });
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' }));
-  a.download = 'golf5-obd-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.append(a); a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
+  toast(S.rows.length + ' satır CSV hazırlandı');
 });
 
 if (!SerialTransport.supported && BleTransport.supported) {

@@ -60,8 +60,20 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; }
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; z-index: 20; max-width: 90vw; }
 .toast.err { border-color: var(--bad); }
 @media (max-width: 720px) {
-  .gauges, .two { grid-template-columns: 1fr; }
-  .gauges canvas { height: 220px; }
+  .two { grid-template-columns: 1fr; }
+  .gauges { gap: 6px; margin-bottom: 6px; }
+  .gauges .card { padding: 4px; border-radius: 10px; }
+  .gauges canvas { height: 150px; }
+  .tiles { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .tile { padding: 6px 7px; border-radius: 9px; }
+  .tile .n { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .v { font-size: 18px; line-height: 1.2; }
+  .tile .v small { font-size: 10px; margin-left: 2px; }
+  .tile canvas { height: 18px; margin-top: 2px; }
+  header { padding: 8px 10px; gap: 6px 8px; }
+  header h1 { font-size: 15px; flex-basis: 100%; }
+  .pill { padding: 2px 8px; font-size: 12px; }
+  nav button { padding: 7px 10px; font-size: 14px; }
   .charts { grid-template-columns: 1fr; }
-  main { padding: 10px; }
+  main { padding: 8px; }
 }
