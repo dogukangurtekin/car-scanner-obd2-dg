@@ -1,8 +1,8 @@
-import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, fmt } from './pids.js?v=12';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=12';
-import { ELM } from './elm.js?v=12';
-import { dtcDescribe } from './dtc.js?v=12';
-import { drawGauge, drawLine, drawBars } from './charts.js?v=12';
+import { PIDS, PID_BY_ID, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, fmt } from './pids.js?v=13';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=13';
+import { ELM } from './elm.js?v=13';
+import { dtcDescribe } from './dtc.js?v=13';
+import { drawGauge, drawLine, drawBars } from './charts.js?v=13';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -224,6 +224,9 @@ function buildInfo() {
   ];
   $('#infoBody').innerHTML = rows.map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('');
   $('#pidBody').innerHTML = S.defs.map((p) => `<tr><td>${p.id}</td><td>${p.name}</td><td id="pv${p.id}">—</td></tr>`).join('');
+  const extra = [...(e?.supported || [])].filter((id) => !PID_BY_ID[id] && id !== STATUS_PID).sort();
+  $('#rawCount').textContent = extra.length + ' PID';
+  $('#rawBody').innerHTML = extra.map((id) => `<tr><td>${id}</td><td>${EXTRA_NAMES[id] || 'Tanımsız / üreticiye özel'}</td><td id="rw${id}">—</td></tr>`).join('');
 }
 
 // ---------- çizim döngüsü ----------
@@ -342,6 +345,13 @@ $('#termForm').addEventListener('submit', async (e) => {
   try { await S.elm.cmd(c, 8000); } catch (err) { termLog('sys', err.message); }
 });
 
+$('#btnRaw').addEventListener('click', async () => {
+  if (!S.elm) return toast('Önce bağlanın', true);
+  for (const td of document.querySelectorAll('#rawBody td[id^=rw]')) {
+    if (!S.elm) break;
+    try { td.textContent = (await S.elm.readRaw(td.id.slice(2))) ?? 'yanıt yok'; } catch { td.textContent = 'hata'; }
+  }
+});
 $('#btnReset').addEventListener('click', () => { trip = newTrip(); S.rows = []; });
 $('#btnCsv').addEventListener('click', async () => {
   if (!S.rows.length) return toast('Kayıt yok — önce bağlanıp veri toplayın', true);

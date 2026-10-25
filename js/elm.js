@@ -1,5 +1,5 @@
-import { PIDS, PID_BY_ID, STATUS_PID } from './pids.js?v=12';
-import { decodeDtcs } from './dtc.js?v=12';
+import { PIDS, PID_BY_ID, STATUS_PID } from './pids.js?v=13';
+import { decodeDtcs } from './dtc.js?v=13';
 
 const ERR = /UNABLE|ERROR|BUS INIT|STOPPED|NO DATA|^\?$|CAN ERROR|DATA ERROR/i;
 
@@ -103,6 +103,11 @@ export class ELM {
 
   async readDtcs() { return decodeDtcs(await this.cmd('03', 8000), this.isCAN); }
   async clearDtcs() { return this.cmd('04', 8000); }
+
+  async readRaw(id) {
+    const b = findResp(await this.cmd('01' + id, 3000), '41' + id);
+    return b ? b.map((x) => x.toString(16).toUpperCase().padStart(2, '0')).join(' ') : null;
+  }
 
   async readVin() {
     const lines = await this.cmd('0902', 8000);

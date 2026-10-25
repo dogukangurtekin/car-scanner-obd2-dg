@@ -29,6 +29,17 @@ export const PIDS = [
 // Gösterge dışı, yalnızca durum için okunan PID: 0101 (MIL + DTC sayısı)
 export const STATUS_PID = '01';
 
+// Panoda kart olarak gösterilmeyen, ama aracın bildirebildiği standart PID'lerin adları (yalnızca bilgi amaçlı)
+export const EXTRA_NAMES = {
+  '03': 'Yakıt sistemi durumu (açık/kapalı çevrim)', '12': 'İkincil hava durumu', '13': 'Lambda sondalarının yeri',
+  '14': 'Lambda B1S1 voltajı', '15': 'Lambda B1S2 voltajı', '1C': 'OBD standardı', '1D': 'Lambda sondalarının yeri (4 banka)',
+  '1E': 'PTO durumu', '2C': 'Komut EGR', '2D': 'EGR hatası', '2E': 'Komut buharlaşma purge', '30': 'Silme sonrası ısınma sayısı',
+  '32': 'EVAP sistem buhar basıncı', '34': 'Lambda B1S1 (akım)', '3C': 'Katalizör sıcaklığı B1S1', '3E': 'Katalizör sıcaklığı B1S2',
+  '41': 'Bu sürüş döngüsünde monitör durumu', '45': 'Bağıl gaz kelebeği', '47': 'Mutlak gaz kelebeği B', '49': 'Gaz pedalı D',
+  '4A': 'Gaz pedalı E', '4C': 'Komut gaz kelebeği', '4D': 'MIL açıkken geçen süre (dk)', '4E': 'Silmeden beri geçen süre (dk)',
+  '51': 'Yakıt tipi', '20': 'Desteklenen PID 21-40', '40': 'Desteklenen PID 41-60', '60': 'Desteklenen PID 61-80',
+};
+
 export const PID_BY_ID = Object.fromEntries(PIDS.map((p) => [p.id, p]));
 
 // Demo/ilk açılış için varsayılan grafik seçimi
