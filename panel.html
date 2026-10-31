@@ -9,19 +9,23 @@
 <meta name="robots" content="noindex,follow">
 <meta name="color-scheme" content="dark light">
 <script>try{var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}</script>
-<link rel="stylesheet" href="css/style.css?v=22">
+<link rel="stylesheet" href="css/style.css?v=23">
 </head>
 <body>
 <header>
-  <h1><span id="carName">OBD2 Panosu</span> <small id="carSub">ELM327 · v22</small></h1>
-  <span class="pill" id="stConn">Bağlı değil</span>
-  <span class="pill mil" id="stMil" title="Motor arıza lambası">MIL —</span>
-  <span class="pill" id="stVolt">Akü —</span>
-  <span class="pill" id="stRate">— PID/sn</span>
-  <a class="btn alt themebtn" href="./" title="Ana sayfa" style="text-decoration:none">⌂ Ana sayfa</a>
-  <button class="btn alt themebtn" id="btnTheme" title="Gündüz / gece modu">☀ Gündüz</button>
-  <button class="btn alt themebtn" id="btnLogin">G  Google ile giriş</button>
-  <button class="btn danger hidden" id="btnDisc">Bağlantıyı kes</button>
+  <h1><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#04121c" stroke-width="2.4" stroke-linecap="round"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></svg></span><span class="ttl"><span id="carName">OBD2 Panosu</span><small id="carSub">ELM327 · v23</small></span></h1>
+  <div class="status">
+    <span class="pill" id="stConn">Bağlı değil</span>
+    <span class="pill mil" id="stMil" title="Motor arıza lambası">MIL —</span>
+    <span class="pill" id="stVolt">Akü —</span>
+    <span class="pill" id="stRate">— PID/sn</span>
+  </div>
+  <div class="actions">
+    <a class="btn alt themebtn" href="./" title="Ana sayfa" style="text-decoration:none">⌂ Ana sayfa</a>
+    <button class="btn alt themebtn" id="btnTheme" title="Gündüz / gece modu">☀ Gündüz</button>
+    <button class="btn alt themebtn" id="btnLogin">G  Google ile giriş</button>
+    <button class="btn danger hidden" id="btnDisc">Bağlantıyı kes</button>
+  </div>
 </header>
 <nav id="tabs">
   <button data-tab="dash" class="active">Gösterge</button>
@@ -246,6 +250,6 @@
     </div>
   </section>
 </main>
-<script type="module" src="js/app.js?v=22"></script>
+<script type="module" src="js/app.js?v=23"></script>
 </body>
 </html>
