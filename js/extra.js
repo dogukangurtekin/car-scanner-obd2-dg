@@ -1,10 +1,10 @@
-import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=19';
-import { dtcDescribe } from './dtc.js?v=19';
-import { drawBars, drawLine, drawCombo } from './charts.js?v=19';
-import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=19';
-import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=19';
-import { PerfEngine, TESTS } from './perf.js?v=19';
-import { loadTrips, clearTrips, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=19';
+import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=20';
+import { dtcDescribe } from './dtc.js?v=20';
+import { drawBars, drawLine, drawCombo } from './charts.js?v=20';
+import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=20';
+import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=20';
+import { PerfEngine, TESTS } from './perf.js?v=20';
+import { loadTrips, clearTrips, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=20';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;

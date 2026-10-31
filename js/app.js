@@ -1,12 +1,12 @@
-import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES } from './pids.js?v=19';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=19';
-import { ELM } from './elm.js?v=19';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=19';
-import { dtcDescribe } from './dtc.js?v=19';
-import { drawGauge, drawLine } from './charts.js?v=19';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=19';
-import { saveTrip } from './store.js?v=19';
-import { initExtra } from './extra.js?v=19';
+import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES } from './pids.js?v=20';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=20';
+import { ELM } from './elm.js?v=20';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=20';
+import { dtcDescribe } from './dtc.js?v=20';
+import { drawGauge, drawLine } from './charts.js?v=20';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=20';
+import { saveTrip } from './store.js?v=20';
+import { initExtra } from './extra.js?v=20';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -38,16 +38,19 @@ const termLog = (kind, text) => {
 
 // Metni dosya olarak kaydet: önce paylaşım menüsü (iOS), olmazsa indirme bağlantısı
 async function saveFile(name, text, mime = 'text/csv') {
-  try {
-    const file = new File([text], name, { type: mime });
-    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
-  } catch (e) { if (e.name === 'AbortError') return; }
+  // Önce doğrudan indirme; yalnızca tarayıcı indirmeyi desteklemiyorsa paylaşım menüsü
+  if (!('download' in HTMLAnchorElement.prototype)) {
+    try {
+      const file = new File([text], name, { type: mime });
+      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+    } catch (e) { if (e.name === 'AbortError') return; }
+  }
   const url = URL.createObjectURL(new Blob([text], { type: mime }));
   const a = document.createElement('a');
   a.href = url; a.download = name; a.style.display = 'none';
   document.body.append(a); a.click();
-  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
-  toast('Dosya hazırlandı: ' + name);
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 10000);
+  toast('İndiriliyor: ' + name);
 }
 
 const val = (key) => S.latest[key]?.v ?? null;
