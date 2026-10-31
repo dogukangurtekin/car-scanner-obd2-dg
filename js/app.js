@@ -5,7 +5,7 @@ import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=23';
 import { dtcDescribe } from './dtc.js?v=23';
 import { drawGauge, drawLine } from './charts.js?v=23';
 import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=23';
-import { saveTrip, tserSave, SER_COLS } from './store.js?v=23';
+import { saveTrip, tserSave } from './store.js?v=23';
 import { initExtra } from './extra.js?v=23';
 import { initCloud, pushPending } from './cloud.js?v=23';
 
@@ -65,7 +65,7 @@ const valsMap = () => {
 const newTrip = () => ({
   id: Date.now(), start: Date.now(), t: 0, dist: 0, fuel: 0, vmax: 0, rmax: 0, idle: 0, vsum: 0, vt: 0, cmax: -99,
   rpmH: new Array(8).fill(0), spdH: new Array(8).fill(0), inst: null, lph: null,
-  ser: { iv: 5, acc: 0, d: [] },
+  ser: { iv: 5, acc: 0, d: [], cols: [...new Set([...PIDS.map((p) => p.key), 'lph', 'inst', 'fuel', 'dist'])] },
 });
 S.trip = newTrip();
 
@@ -96,10 +96,15 @@ function tripStep(dt) {
   ser.acc += dt;
   if (ser.acc >= ser.iv) {
     ser.acc -= ser.iv;
-    const row = { rpm: v['0C'], spd: v['0D'], cool: v['05'], load: v['04'], thr: v['11'], map: v['0B'], iat: v['0F'], volt: v['42'] ?? S.elm?.info?.voltage, lph: lps != null ? lps * 3600 : null };
-    for (const k of SER_COLS) ser.d.push(row[k] == null || isNaN(+row[k]) ? null : Math.round(+row[k] * 10) / 10);
-    if (ser.d.length > 4000 * SER_COLS.length) {
-      const w = SER_COLS.length, out = [];
+    const t = now();
+    const calc = { lph: lps != null ? lps * 3600 : null, inst: trip.inst, fuel: trip.fuel, dist: trip.dist };
+    for (const k of ser.cols) {
+      let x = k in calc ? calc[k] : S.latest[k] && t - S.latest[k].t < 30 ? S.latest[k].v : null;
+      if (k === '42' && x == null) x = S.elm?.info?.voltage ?? null;
+      ser.d.push(x == null || isNaN(+x) ? null : Math.round(+x * 1000) / 1000);
+    }
+    if (ser.d.length > 60000) { // ~60 bin değer: Firestore belge sınırı için seyrelt, hiçbir aralık atılmaz
+      const w = ser.cols.length, out = [];
       for (let i = 0; i < ser.d.length; i += w * 2) out.push(...ser.d.slice(i, i + w));
       ser.d = out; ser.iv *= 2;
     }
@@ -115,7 +120,7 @@ function persistTrip() {
     car: S.car ? carLabel(S.car, S.online) : activeProfile(S.settings).name,
     rpmH: t.rpmH, spdH: t.spdH, cmax: t.cmax, hasSer: t.ser.d.length > 0,
   });
-  return tserSave(t.id, { iv: t.ser.iv, d: t.ser.d.slice() }).catch(() => {});
+  return tserSave(t.id, { iv: t.ser.iv, d: t.ser.d.slice(), cols: t.ser.cols }).catch(() => {});
 }
 
 // ---------- veri girişi ----------

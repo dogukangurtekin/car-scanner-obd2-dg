@@ -15,14 +15,17 @@ export const clearTrips = () => wr(TK, []);
 export function deleteTrip(id) { wr(TK, loadTrips().filter((x) => x.id !== id)); }
 
 // ---- Yolculuk zaman serisi (IndexedDB): her iv sn'de bir satır, SER_COLS sütun, düz dizi ----
-export const SER_COLS = ['rpm', 'spd', 'cool', 'load', 'thr', 'map', 'iat', 'volt', 'lph'];
+// Sütun listesi her kayıtla birlikte saklanır (cols); yalnızca ilk sürümde kaydedilenler için varsayılan:
+export const SER_LEGACY = ['0C', '0D', '05', '04', '11', '0B', '0F', '42', 'lph'];
 export async function tserSave(id, ser) {
   const d = await db();
-  await tx(d, ['tser'], 'readwrite', (t) => { t.objectStore('tser').put({ id, iv: ser.iv, d: ser.d }); });
+  await tx(d, ['tser'], 'readwrite', (t) => { t.objectStore('tser').put({ id, iv: ser.iv, d: ser.d, cols: ser.cols || SER_LEGACY }); });
 }
 export async function tserGet(id) {
   const d = await db();
-  return (await req(d.transaction('tser').objectStore('tser').get(id))) || null;
+  const r = (await req(d.transaction('tser').objectStore('tser').get(id))) || null;
+  if (r && !r.cols) r.cols = SER_LEGACY;
+  return r;
 }
 export async function tserDelete(id) {
   const d = await db();

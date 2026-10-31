@@ -34,7 +34,7 @@ export async function pushPending() {
     for (const t of loadTrips()) {
       if (done.has(t.id)) continue;
       const s = t.hasSer ? await tserGet(t.id) : null;
-      await F.setDoc(F.doc(fs, 'users', user.uid, 'trips', String(t.id)), { ...t, ...(s ? { ser: s.d, iv: s.iv } : {}), savedAt: Date.now() });
+      await F.setDoc(F.doc(fs, 'users', user.uid, 'trips', String(t.id)), { ...t, ...(s ? { ser: s.d, iv: s.iv, cols: s.cols } : {}), savedAt: Date.now() });
       done.add(t.id); n++;
     }
     markSynced(done);
@@ -59,9 +59,9 @@ async function pullAll() {
   const jobs = [];
   snap.forEach((d) => {
     const t = d.data(); delete t.savedAt;
-    const ser = t.ser, iv = t.iv; delete t.ser; delete t.iv;
+    const ser = t.ser, iv = t.iv, cols = t.cols; delete t.ser; delete t.iv; delete t.cols;
     done.add(t.id);
-    if (!have.has(t.id)) { saveTrip(t); n++; if (ser) jobs.push(tserSave(t.id, { iv: iv || 5, d: ser })); }
+    if (!have.has(t.id)) { saveTrip(t); n++; if (ser) jobs.push(tserSave(t.id, { iv: iv || 5, d: ser, cols })); }
   });
   await Promise.all(jobs);
   markSynced(done);

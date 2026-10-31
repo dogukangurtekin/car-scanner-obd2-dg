@@ -5,7 +5,7 @@ import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEF
 import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=23';
 import { PerfEngine, TESTS } from './perf.js?v=23';
 import { removeRemote } from './cloud.js?v=23';
-import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_COLS, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=23';
+import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=23';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -258,8 +258,10 @@ export function initExtra(ctx) {
   });
 
   // ---- yolculuk ayrıntısı (satıra tıklayınca): özet + dağılımlar + zaman grafikleri ----
-  const SERIES = [['Hız', 'spd', 'km/h', '#3ddc84'], ['Devir', 'rpm', 'rpm', '#3fb6ff'], ['Su sıcaklığı', 'cool', '°C', '#ff7a59'], ['Motor yükü', 'load', '%', '#b48cff'],
-    ['Gaz kelebeği', 'thr', '%', '#ffd23f'], ['MAP', 'map', 'kPa', '#4dd0c8'], ['Emme havası', 'iat', '°C', '#ff9ecb'], ['Akü', 'volt', 'V', '#9ccc65'], ['Anlık yakıt', 'lph', 'L/sa', '#ffa726']];
+  const SERIES = [['Hız', '0D', 'km/h', '#3ddc84'], ['Devir', '0C', 'rpm', '#3fb6ff'], ['Su sıcaklığı', '05', '°C', '#ff7a59'], ['Motor yükü', '04', '%', '#b48cff'],
+    ['Gaz kelebeği', '11', '%', '#ffd23f'], ['MAP', '0B', 'kPa', '#4dd0c8'], ['MAF', '10', 'g/s', '#80cbc4'], ['Emme havası', '0F', '°C', '#ff9ecb'], ['Akü', '42', 'V', '#9ccc65'],
+    ['Anlık yakıt', 'lph', 'L/sa', '#ffa726'], ['Anlık tüketim', 'inst', 'L/100km', '#ef5350']];
+  const COMPUTED = { lph: ['Anlık yakıt akışı', 'L/sa'], inst: ['Anlık tüketim', 'L/100km'], fuel: ['Yolculukta kullanılan yakıt', 'L'], dist: ['Yolculukta katedilen mesafe', 'km'] };
   let detail = null;
   const tmFmt = (s) => { s = Math.round(s); return s >= 3600 ? `${Math.floor(s / 3600)}sa${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}` : `${Math.floor(s / 60)}dk`; };
   $('#tripBody').addEventListener('click', async (e) => {
@@ -275,14 +277,14 @@ export function initExtra(ctx) {
   });
   function renderDetail() {
     const box = $('#tripDetail'); if (!detail) return;
-    const { x, ser, live } = detail, w = SER_COLS.length;
+    const { x, ser, live } = detail, cols = ser?.cols || SER_LEGACY, w = cols.length;
     const a = x.vt ? x.vsum / x.vt : 0, c = x.dist > 0.2 && x.fuel > 0 ? (x.fuel / x.dist) * 100 : null;
     const kp = [['Başlangıç', new Date(x.start).toLocaleString('tr-TR')], ['Bitiş', live ? 'devam ediyor' : x.end ? new Date(x.end).toLocaleString('tr-TR') : '—'], ['Araç', esc(x.car || '—')],
       ['Süre', dur(x.t)], ['Mesafe', dist(x.dist)], ['Ort. hız', spd(a)], ['Maks. hız', spd(x.vmax || 0)], ['Maks. devir', (x.rmax || 0).toFixed(0) + ' rpm'], ['Rölanti', dur(x.idle || 0)],
       ['Yakıt', x.fuel.toFixed(2) + ' L'], ['Ort. tüketim', cons(c)], ['Maliyet', x.price > 0 ? (x.fuel * x.price).toFixed(2) + ' ' + (x.cur || '') : '—'],
       ['Maks. su sıc.', x.cmax > -99 ? x.cmax.toFixed(0) + ' °C' : '—']];
     const n = ser ? Math.floor(ser.d.length / w) : 0;
-    const col = (k) => { const j = SER_COLS.indexOf(k), o = []; for (let i = 0; i < n; i++) { const v = ser.d[i * w + j]; if (v != null) o.push([i * ser.iv, v]); } return o; };
+    const col = (k) => { const j = cols.indexOf(k), o = []; if (j < 0) return o; for (let i = 0; i < n; i++) { const v = ser.d[i * w + j]; if (v != null) o.push([i * ser.iv, v]); } return o; };
     const have = ser ? SERIES.filter(([, k]) => col(k).length >= 2) : [];
     box.innerHTML = `<div class="row" style="justify-content:space-between"><h3 style="margin:0">Yolculuk ayrıntısı${live ? ' (canlı, şu ana kadar)' : ''}</h3><span><button class="btn alt" id="tdCsv">Bu yolculuğu CSV indir</button> <button class="btn alt" id="tdClose">Kapat</button>${live ? '' : ' <button class="btn danger" id="tdDel">Sil</button>'}</span></div>
       <div class="kpis" style="margin-top:10px">${kp.map(([k, v]) => `<div class="card kpi"><div class="n">${k}</div><div class="v" style="font-size:15px">${v}</div></div>`).join('')}</div>
@@ -303,9 +305,16 @@ export function initExtra(ctx) {
     $('#tdClose').onclick = () => { detail = null; box.classList.add('hidden'); };
     $('#tdCsv').onclick = () => {
       if (!ser || !n) return toast('Bu yolculukta zaman serisi yok', true);
+      // hiç değer içermeyen sütunları at; kalan her sütun adı + birimiyle yazılır
+      const keep = cols.map((k, j) => j).filter((j) => { for (let i = 0; i < n; i++) if (ser.d[i * w + j] != null) return true; return false; });
+      const label = (k) => { const m = COMPUTED[k] || (PID_BY_KEY[k] && [PID_BY_KEY[k].name, PID_BY_KEY[k].unit]); return m ? `${m[0]}${m[1] ? ' (' + m[1] + ')' : ''}` : k; };
+      const num = (v) => String(v).replace('.', ',');
+      const pad = (v) => String(v).padStart(2, '0');
+      const stamp = (ms) => { const d = new Date(ms); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+      const head = ['Tarih-Saat', 'Süre (sn)', ...keep.map((j) => label(cols[j]))].join(';');
       const rows = [];
-      for (let i = 0; i < n; i++) rows.push([i * ser.iv, ...SER_COLS.map((_, j) => ser.d[i * w + j] ?? '')].join(';').replace(/\./g, ','));
-      saveFile('yolculuk-' + new Date(x.start).toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.csv', '﻿' + [['sn', ...SER_COLS].join(';'), ...rows].join('\r\n'));
+      for (let i = 0; i < n; i++) rows.push([stamp(x.start + i * ser.iv * 1000), i * ser.iv, ...keep.map((j) => { const v = ser.d[i * w + j]; return v == null ? '' : num(v); })].join(';'));
+      saveFile('yolculuk-' + new Date(x.start).toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.csv', '﻿' + [head, ...rows].join('\r\n'));
     };
     const del = $('#tdDel');
     if (del) del.onclick = async () => {
