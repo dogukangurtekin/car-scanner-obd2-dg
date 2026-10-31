@@ -12,6 +12,26 @@ export function saveTrip(t) {
   wr(TK, a.slice(-400));
 }
 export const clearTrips = () => wr(TK, []);
+export function deleteTrip(id) { wr(TK, loadTrips().filter((x) => x.id !== id)); }
+
+// ---- Yolculuk zaman serisi (IndexedDB): her iv sn'de bir satır, SER_COLS sütun, düz dizi ----
+export const SER_COLS = ['rpm', 'spd', 'cool', 'load', 'thr', 'map', 'iat', 'volt', 'lph'];
+export async function tserSave(id, ser) {
+  const d = await db();
+  await tx(d, ['tser'], 'readwrite', (t) => { t.objectStore('tser').put({ id, iv: ser.iv, d: ser.d }); });
+}
+export async function tserGet(id) {
+  const d = await db();
+  return (await req(d.transaction('tser').objectStore('tser').get(id))) || null;
+}
+export async function tserDelete(id) {
+  const d = await db();
+  await tx(d, ['tser'], 'readwrite', (t) => { t.objectStore('tser').delete(id); });
+}
+export async function tserClear() {
+  const d = await db();
+  await tx(d, ['tser'], 'readwrite', (t) => { t.objectStore('tser').clear(); });
+}
 
 export const loadPerf = () => rd(PK, {});
 export const savePerf = (p) => wr(PK, p);
@@ -19,10 +39,10 @@ export const savePerf = (p) => wr(PK, p);
 // ---- IndexedDB: kayıtlar ----
 function db() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open('obd', 2);
+    const r = indexedDB.open('obd', 3);
     r.onupgradeneeded = () => {
       const d = r.result;
-      for (const n of ['meta', 'rows', 'snap']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' });
+      for (const n of ['meta', 'rows', 'snap', 'tser']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' });
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);

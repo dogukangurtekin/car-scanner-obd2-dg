@@ -5,7 +5,7 @@ import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=22';
 import { dtcDescribe } from './dtc.js?v=22';
 import { drawGauge, drawLine } from './charts.js?v=22';
 import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=22';
-import { saveTrip } from './store.js?v=22';
+import { saveTrip, tserSave, SER_COLS } from './store.js?v=22';
 import { initExtra } from './extra.js?v=22';
 import { initCloud, pushPending } from './cloud.js?v=22';
 
@@ -65,6 +65,7 @@ const valsMap = () => {
 const newTrip = () => ({
   id: Date.now(), start: Date.now(), t: 0, dist: 0, fuel: 0, vmax: 0, rmax: 0, idle: 0, vsum: 0, vt: 0, cmax: -99,
   rpmH: new Array(8).fill(0), spdH: new Array(8).fill(0), inst: null, lph: null,
+  ser: { iv: 5, acc: 0, d: [] },
 });
 S.trip = newTrip();
 
@@ -90,16 +91,31 @@ function tripStep(dt) {
     trip.lph = lps * 3600;
     trip.inst = spd > 3 ? (lps * 3600 / spd) * 100 : null;
   }
+  // zaman serisi: her ser.iv saniyede bir örnek (4000 satırı geçince seyreltilir, hiçbir şey atılmaz)
+  const ser = trip.ser;
+  ser.acc += dt;
+  if (ser.acc >= ser.iv) {
+    ser.acc -= ser.iv;
+    const row = { rpm: v['0C'], spd: v['0D'], cool: v['05'], load: v['04'], thr: v['11'], map: v['0B'], iat: v['0F'], volt: v['42'] ?? S.elm?.info?.voltage, lph: lps != null ? lps * 3600 : null };
+    for (const k of SER_COLS) ser.d.push(row[k] == null || isNaN(+row[k]) ? null : Math.round(+row[k] * 10) / 10);
+    if (ser.d.length > 4000 * SER_COLS.length) {
+      const w = SER_COLS.length, out = [];
+      for (let i = 0; i < ser.d.length; i += w * 2) out.push(...ser.d.slice(i, i + w));
+      ser.d = out; ser.iv *= 2;
+    }
+  }
 }
 
 function persistTrip() {
   const t = S.trip;
-  if (t.t < 20 || (t.dist < 0.05 && t.t < 60)) return;
+  if (t.t < 20 || (t.dist < 0.05 && t.t < 60)) return Promise.resolve();
   saveTrip({
     id: t.id, start: t.start, end: Date.now(), t: t.t, dist: t.dist, fuel: t.fuel, vsum: t.vsum, vt: t.vt,
     idle: t.idle, vmax: t.vmax, rmax: t.rmax, price: S.settings.price, cur: S.settings.cur,
     car: S.car ? carLabel(S.car, S.online) : activeProfile(S.settings).name,
+    rpmH: t.rpmH, spdH: t.spdH, cmax: t.cmax, hasSer: t.ser.d.length > 0,
   });
+  return tserSave(t.id, { iv: t.ser.iv, d: t.ser.d.slice() }).catch(() => {});
 }
 
 // ---------- veri girişi ----------
@@ -227,7 +243,7 @@ async function connect() {
 }
 
 async function disconnect(silent) {
-  persistTrip();
+  await persistTrip();
   pushPending();
   S.running = false;
   X.onDisconnect();

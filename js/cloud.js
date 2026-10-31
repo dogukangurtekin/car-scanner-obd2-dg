@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
 import { FIREBASE_CONFIG } from './cloud-config.js?v=22';
-import { loadTrips, saveTrip } from './store.js?v=22';
+import { loadTrips, saveTrip, tserGet, tserSave } from './store.js?v=22';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -33,7 +33,8 @@ export async function pushPending() {
     let n = 0;
     for (const t of loadTrips()) {
       if (done.has(t.id)) continue;
-      await F.setDoc(F.doc(fs, 'users', user.uid, 'trips', String(t.id)), { ...t, savedAt: Date.now() });
+      const s = t.hasSer ? await tserGet(t.id) : null;
+      await F.setDoc(F.doc(fs, 'users', user.uid, 'trips', String(t.id)), { ...t, ...(s ? { ser: s.d, iv: s.iv } : {}), savedAt: Date.now() });
       done.add(t.id); n++;
     }
     markSynced(done);
@@ -45,16 +46,24 @@ export async function pushPending() {
   } finally { busy = false; }
 }
 
+export async function removeRemote(id) {
+  if (!user || !F) return;
+  try { await F.deleteDoc(F.doc(fs, 'users', user.uid, 'trips', String(id))); } catch (e) { toastFn('Hesaptan silinemedi: ' + (e.code || e.message), true); }
+}
+
 async function pullAll() {
   const snap = await F.getDocs(F.collection(fs, 'users', user.uid, 'trips'));
   const have = new Set(loadTrips().map((t) => t.id));
   const done = synced();
   let n = 0;
+  const jobs = [];
   snap.forEach((d) => {
     const t = d.data(); delete t.savedAt;
+    const ser = t.ser, iv = t.iv; delete t.ser; delete t.iv;
     done.add(t.id);
-    if (!have.has(t.id)) { saveTrip(t); n++; }
+    if (!have.has(t.id)) { saveTrip(t); n++; if (ser) jobs.push(tserSave(t.id, { iv: iv || 5, d: ser })); }
   });
+  await Promise.all(jobs);
   markSynced(done);
   return n;
 }

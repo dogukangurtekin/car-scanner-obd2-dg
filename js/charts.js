@@ -77,7 +77,7 @@ export function drawLine(canvas, series, o) {
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     const span = o.tmax - o.tmin;
-    for (let i = 0; i <= 4; i++) ctx.fillText(i === 4 ? 'şimdi' : '-' + Math.round(span * (1 - i / 4)) + 's', L + (pw * i) / 4, h - B + 3);
+    for (let i = 0; i <= 4; i++) ctx.fillText(o.xlab ? o.xlab(o.tmin + span * (i / 4)) : i === 4 ? 'şimdi' : '-' + Math.round(span * (1 - i / 4)) + 's', L + (pw * i) / 4, h - B + 3);
   }
   if (vis.length < 2) return;
   ctx.beginPath();

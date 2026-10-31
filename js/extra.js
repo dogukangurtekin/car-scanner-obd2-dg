@@ -4,7 +4,8 @@ import { drawBars, drawLine, drawCombo } from './charts.js?v=22';
 import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=22';
 import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=22';
 import { PerfEngine, TESTS } from './perf.js?v=22';
-import { loadTrips, clearTrips, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=22';
+import { removeRemote } from './cloud.js?v=22';
+import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_COLS, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=22';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -214,11 +215,76 @@ export function initExtra(ctx) {
 
     $('#tripBody').innerHTML = list.slice().sort((a, b) => b.start - a.start).slice(0, 15).map((x) => {
       const a = x.vt ? x.vsum / x.vt : 0, c = x.dist > 0.2 && x.fuel > 0 ? (x.fuel / x.dist) * 100 : null;
-      return `<tr><td>${fmtDate(x.start)}</td><td>${dur(x.t)}</td><td>${dist(x.dist)}</td><td>${spd(a)}</td><td>${x.fuel.toFixed(2)} L</td><td>${cons(c)}</td><td>${x.price > 0 ? (x.fuel * x.price).toFixed(2) + ' ' + (x.cur || '') : '—'}</td></tr>`;
+      return `<tr data-id="${x.id}" style="cursor:pointer" title="Ayrıntı için tıklayın"><td>${fmtDate(x.start)}</td><td>${dur(x.t)}</td><td>${dist(x.dist)}</td><td>${spd(a)}</td><td>${x.fuel.toFixed(2)} L</td><td>${cons(c)}</td><td>${x.price > 0 ? (x.fuel * x.price).toFixed(2) + ' ' + (x.cur || '') : '—'}</td></tr>`;
     }).join('') || '<tr><td colspan="7" class="na">Henüz yolculuk yok.</td></tr>';
   }
   $('#btnReset').addEventListener('click', () => { persistTrip(); resetTrip(); trips = loadTrips(); });
-  $('#btnTripClear').addEventListener('click', () => { if (confirm('Tüm yolculuk geçmişi silinsin mi?')) { clearTrips(); trips = []; } });
+  $('#btnTripClear').addEventListener('click', async () => {
+    if (!confirm('Tüm yolculuk geçmişi bu cihazdan ve (giriş yaptıysanız) Google hesabınızdan silinsin mi? Geri alınamaz.')) return;
+    const ids = loadTrips().map((x) => x.id);
+    clearTrips(); trips = []; $('#tripDetail').classList.add('hidden');
+    try { await tserClear(); } catch {}
+    for (const id of ids) await removeRemote(id);
+  });
+
+  // ---- yolculuk ayrıntısı (satıra tıklayınca): özet + dağılımlar + zaman grafikleri ----
+  const SERIES = [['Hız', 'spd', 'km/h', '#3ddc84'], ['Devir', 'rpm', 'rpm', '#3fb6ff'], ['Su sıcaklığı', 'cool', '°C', '#ff7a59'], ['Motor yükü', 'load', '%', '#b48cff'],
+    ['Gaz kelebeği', 'thr', '%', '#ffd23f'], ['MAP', 'map', 'kPa', '#4dd0c8'], ['Emme havası', 'iat', '°C', '#ff9ecb'], ['Akü', 'volt', 'V', '#9ccc65'], ['Anlık yakıt', 'lph', 'L/sa', '#ffa726']];
+  let detail = null;
+  const tmFmt = (s) => { s = Math.round(s); return s >= 3600 ? `${Math.floor(s / 3600)}sa${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}` : `${Math.floor(s / 60)}dk`; };
+  $('#tripBody').addEventListener('click', async (e) => {
+    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+    const id = +tr.dataset.id;
+    const live = !!S.running && id === S.trip.id;
+    const x = live ? { ...S.trip, price: st().price, cur: st().cur, car: prof().name } : loadTrips().find((t) => t.id === id);
+    if (!x) return;
+    const ser = live ? { iv: S.trip.ser.iv, d: S.trip.ser.d.slice() } : await tserGet(id).catch(() => null);
+    detail = { x, ser, live };
+    renderDetail();
+    $('#tripDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  function renderDetail() {
+    const box = $('#tripDetail'); if (!detail) return;
+    const { x, ser, live } = detail, w = SER_COLS.length;
+    const a = x.vt ? x.vsum / x.vt : 0, c = x.dist > 0.2 && x.fuel > 0 ? (x.fuel / x.dist) * 100 : null;
+    const kp = [['Başlangıç', new Date(x.start).toLocaleString('tr-TR')], ['Bitiş', live ? 'devam ediyor' : x.end ? new Date(x.end).toLocaleString('tr-TR') : '—'], ['Araç', esc(x.car || '—')],
+      ['Süre', dur(x.t)], ['Mesafe', dist(x.dist)], ['Ort. hız', spd(a)], ['Maks. hız', spd(x.vmax || 0)], ['Maks. devir', (x.rmax || 0).toFixed(0) + ' rpm'], ['Rölanti', dur(x.idle || 0)],
+      ['Yakıt', x.fuel.toFixed(2) + ' L'], ['Ort. tüketim', cons(c)], ['Maliyet', x.price > 0 ? (x.fuel * x.price).toFixed(2) + ' ' + (x.cur || '') : '—'],
+      ['Maks. su sıc.', x.cmax > -99 ? x.cmax.toFixed(0) + ' °C' : '—']];
+    const n = ser ? Math.floor(ser.d.length / w) : 0;
+    const col = (k) => { const j = SER_COLS.indexOf(k), o = []; for (let i = 0; i < n; i++) { const v = ser.d[i * w + j]; if (v != null) o.push([i * ser.iv, v]); } return o; };
+    const have = ser ? SERIES.filter(([, k]) => col(k).length >= 2) : [];
+    box.innerHTML = `<div class="row" style="justify-content:space-between"><h3 style="margin:0">Yolculuk ayrıntısı${live ? ' (canlı, şu ana kadar)' : ''}</h3><span><button class="btn alt" id="tdCsv">Bu yolculuğu CSV indir</button> <button class="btn alt" id="tdClose">Kapat</button>${live ? '' : ' <button class="btn danger" id="tdDel">Sil</button>'}</span></div>
+      <div class="kpis" style="margin-top:10px">${kp.map(([k, v]) => `<div class="card kpi"><div class="n">${k}</div><div class="v" style="font-size:15px">${v}</div></div>`).join('')}</div>
+      ${x.rpmH ? '<h4>Devir dağılımı (süre %)</h4><canvas id="tdRpm" style="width:100%;height:150px;display:block"></canvas><h4>Hız dağılımı (süre %)</h4><canvas id="tdSpd" style="width:100%;height:150px;display:block"></canvas>' : '<p class="na">Bu yolculuk eski sürümde kaydedildiği için dağılım verisi yok.</p>'}
+      ${have.length ? have.map(([t, k, u]) => `<h4>${t} (${u})</h4><canvas data-k="${k}" style="width:100%;height:140px;display:block"></canvas>`).join('') : '<p class="na">Zaman grafiği verisi yok (eski kayıt ya da veri akmadı).</p>'}
+      <p class="na" style="margin-top:8px">Zaman serisi: ${ser ? `${ser.iv} sn aralıkla, ${n} örnek` : '—'}.</p>`;
+    box.classList.remove('hidden');
+    const pct = (arr) => { const s = arr.reduce((p, q) => p + q, 0) || 1; return arr.map((v) => (v / s) * 100); };
+    if (x.rpmH) {
+      drawBars($('#tdRpm'), ['0-1k', '1-2k', '2-3k', '3-4k', '4-5k', '5-6k', '6-7k', '7k+'], pct(x.rpmH), '#3fb6ff');
+      drawBars($('#tdSpd'), ['0-25', '25-50', '50-75', '75-100', '100-125', '125-150', '150-175', '175+'], pct(x.spdH), '#3ddc84');
+    }
+    const span = Math.max(1, (n - 1) * (ser?.iv || 1));
+    box.querySelectorAll('canvas[data-k]').forEach((cv) => {
+      const color = SERIES.find((s) => s[1] === cv.dataset.k)[3];
+      drawLine(cv, col(cv.dataset.k), { tmin: 0, tmax: span, color, grid: true, labels: true, fill: true, xlab: tmFmt });
+    });
+    $('#tdClose').onclick = () => { detail = null; box.classList.add('hidden'); };
+    $('#tdCsv').onclick = () => {
+      if (!ser || !n) return toast('Bu yolculukta zaman serisi yok', true);
+      const rows = [];
+      for (let i = 0; i < n; i++) rows.push([i * ser.iv, ...SER_COLS.map((_, j) => ser.d[i * w + j] ?? '')].join(';').replace(/\./g, ','));
+      saveFile('yolculuk-' + new Date(x.start).toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.csv', '﻿' + [['sn', ...SER_COLS].join(';'), ...rows].join('\r\n'));
+    };
+    const del = $('#tdDel');
+    if (del) del.onclick = async () => {
+      if (!confirm('Bu yolculuk silinsin mi? (Giriş yaptıysanız Google hesabınızdan da silinir.)')) return;
+      deleteTrip(x.id); trips = loadTrips(); try { await tserDelete(x.id); } catch {}
+      await removeRemote(x.id); detail = null; box.classList.add('hidden');
+    };
+  }
+  window.addEventListener('resize', () => { if (detail) renderDetail(); });
   $('#btnTripCsv').addEventListener('click', () => {
     const list = allTrips();
     if (!list.length) return toast('Yolculuk yok', true);
