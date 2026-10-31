@@ -44,7 +44,8 @@ function db() {
       const d = r.result;
       for (const n of ['meta', 'rows', 'snap', 'tser']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' });
     };
-    r.onsuccess = () => res(r.result);
+    r.onsuccess = () => { r.result.onversionchange = () => r.result.close(); res(r.result); };
+    r.onblocked = () => rej(new Error('Veritabanı başka bir açık sekme tarafından kilitli; diğer sekmeleri kapatın'));
     r.onerror = () => rej(r.error);
   });
 }
