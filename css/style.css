@@ -104,3 +104,6 @@ input[type=number], input[type=text] { background: var(--panel2); border: 1px so
 }
 @media (max-width: 720px) { header h1 { white-space: normal; line-height: 1.25; } }
 .tile.stale { opacity: .4; }
+
+#btnLogin { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+#btnLogin .avatar { width: 20px; height: 20px; border-radius: 50%; }

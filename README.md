@@ -25,3 +25,18 @@ python -m http.server 8765
 4. `main`'e push → `.github/workflows/deploy.yml` dosyaları rsync ile gönderir.
 
 Tasarım ve kapsam için bkz. [docs/PROMPT.md](docs/PROMPT.md).
+
+## Google ile giriş (isteğe bağlı)
+Sağ üstteki "Google ile giriş" ile giriş yapan kullanıcıların yolculuk istatistikleri, bağlantı kesildiğinde otomatik olarak Google hesabına (Firebase Firestore `users/{uid}/trips`) kaydedilir; çevrimdışı kalanlar sonraki girişte gönderilir ve diğer cihazlardan geri yüklenir.
+
+Kurulum (bir kez):
+1. https://console.firebase.google.com → proje oluştur → Authentication → Sign-in method → **Google**'ı aç.
+2. Authentication → Settings → Authorized domains → `obd2.bilisimkod.com` ekle.
+3. Firestore Database oluştur; Rules:
+```
+rules_version = '2';
+service cloud.firestore { match /databases/{db}/documents {
+  match /users/{uid}/trips/{id} { allow read, write: if request.auth != null && request.auth.uid == uid; }
+} }
+```
+4. Proje ayarları → Web uygulaması ekle → `apiKey, authDomain, projectId, appId` değerlerini `js/cloud-config.js` içine yaz, commit/push.
