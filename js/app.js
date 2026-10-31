@@ -1,13 +1,13 @@
-import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES } from './pids.js?v=23';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=23';
-import { ELM } from './elm.js?v=23';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=23';
-import { dtcDescribe } from './dtc.js?v=23';
-import { drawGauge, drawLine } from './charts.js?v=23';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=23';
-import { saveTrip, tserSave } from './store.js?v=23';
-import { initExtra } from './extra.js?v=23';
-import { initCloud, pushPending } from './cloud.js?v=23';
+import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=24';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=24';
+import { ELM } from './elm.js?v=24';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=24';
+import { dtcDescribe } from './dtc.js?v=24';
+import { drawGauge, drawLine } from './charts.js?v=24';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=24';
+import { saveTrip, tserSave } from './store.js?v=24';
+import { initExtra } from './extra.js?v=24';
+import { initCloud, pushPending } from './cloud.js?v=24';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -372,9 +372,20 @@ function render() {
   mil.textContent = sb == null ? 'MIL —' : sb & 0x80 ? `MIL AÇIK · ${sb & 0x7f} kod` : 'MIL kapalı';
   mil.classList.toggle('on', sb != null && !!(sb & 0x80));
 
+  // anormal değer uyarıları (yalnızca taze veride): üst şerit + kart/grafik/gösterge animasyonu
+  const alerts = {};
+  const fresh = valsMap();
+  for (const p of S.defs) { const a = alertOf(p.key, fresh[p.key]); if (a) alerts[p.key] = a; }
+  const bar = $('#alertBar'), list = Object.values(alerts);
+  const worst = list.some((a) => a.level === 'crit') ? 'crit' : list.length ? 'warn' : '';
+  bar.classList.toggle('hidden', !list.length);
+  bar.dataset.level = worst;
+  if (list.length) { const txt = '⚠ ' + list.map((a) => a.msg).join('  ·  '); if (bar.textContent !== txt) bar.textContent = txt; }
+
   if (S.tab === 'dash') {
     const mph = st.speed === 'mph';
-    drawGauge($('#gRpm'), { value: ease('rpm', val('0C')), min: 0, max: 7000, ticks: 7, unit: 'rpm', label: 'Motor Devri', warn: 6200 });
+    const pulse = 0.5 + 0.5 * Math.sin(t * 7);
+    drawGauge($('#gRpm'), { value: ease('rpm', val('0C')), min: 0, max: 7000, ticks: 7, unit: 'rpm', label: 'Motor Devri', warn: 6200, alert: alerts['0C']?.level, pulse });
     const sv = val('0D');
     drawGauge($('#gSpd'), { value: ease('spd', sv == null ? null : mph ? sv * 0.621371 : sv), min: 0, max: mph ? 150 : 240, ticks: mph ? 5 : 8, unit: mph ? 'mph' : 'km/h', label: 'Hız' });
     for (const p of S.defs) {
@@ -383,8 +394,9 @@ function render() {
       el.querySelector('.v span').textContent = txt;
       el.querySelector('.v small').textContent = unit;
       el.classList.toggle('bad', p.warn != null && v != null && v >= p.warn);
+      el.dataset.alert = alerts[p.key]?.level || '';
       el.classList.toggle('stale', !!S.latest[p.key] && t - S.latest[p.key].t > 8);
-      drawLine(el.querySelector('canvas'), S.hist[p.key] || [], { ...sparkOpts('#3fb6ff'), min: p.min, max: p.max });
+      drawLine(el.querySelector('canvas'), S.hist[p.key] || [], { ...sparkOpts(alerts[p.key] ? '#ff4d4d' : '#3fb6ff'), min: p.min, max: p.max });
     }
   } else if (S.tab === 'charts') {
     if (tick % 2) return;
@@ -398,7 +410,11 @@ function render() {
         const vs = vis.map((x) => x[1]), f = (x) => x.toFixed(Math.abs(x) >= 100 ? 0 : 1);
         el.querySelector('.mm').textContent = `min ${f(Math.min(...vs))} · ort ${f(vs.reduce((a, b) => a + b, 0) / vs.length)} · maks ${f(Math.max(...vs))}`;
       }
-      drawLine(el.querySelector('canvas'), vis, { tmin: t - win, tmax: t, color: el.dataset.color, grid: true, labels: true, fill: true });
+      const al = alerts[p.key];
+      el.dataset.alert = al?.level || '';
+      let tag = el.querySelector('.al');
+      if (al) { if (!tag) { tag = document.createElement('div'); tag.className = 'al'; el.querySelector('canvas').before(tag); } tag.textContent = '⚠ ' + al.msg; } else tag?.remove();
+      drawLine(el.querySelector('canvas'), vis, { tmin: t - win, tmax: t, color: al ? '#ff4d4d' : el.dataset.color, grid: true, labels: true, fill: true });
     });
   } else if (S.tab === 'info') {
     for (const p of S.defs) { const c = document.getElementById('pv' + p.key); if (c) { const [x, u] = show(p, val(p.key), st); c.textContent = x + ' ' + u; } }

@@ -24,7 +24,7 @@ export function fit(canvas) {
   return { ctx, w, h };
 }
 
-export function drawGauge(canvas, { value, min, max, unit, label, warn, ticks = 8, decimals = 0 }) {
+export function drawGauge(canvas, { value, min, max, unit, label, warn, ticks = 8, decimals = 0, alert, pulse = 1 }) {
   const f = fit(canvas); if (!f) return;
   const { ctx, w, h } = f;
   const cx = w / 2, cy = h * 0.58, r = Math.min(w / 2, h * 0.62) - Math.max(8, h * 0.05);
@@ -43,11 +43,11 @@ export function drawGauge(canvas, { value, min, max, unit, label, warn, ticks = 
   }
   // değer yayı: degrade + parıltı
   if (value != null && frac(value) > 0) {
-    const hot = warn != null && value >= warn;
+    const hot = alert === 'crit' || (warn != null && value >= warn);
     const g = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
     g.addColorStop(0, hot ? bad : acc); g.addColorStop(1, hot ? bad : acc2);
     ctx.save();
-    ctx.shadowColor = rgba(hot ? bad : acc, 0.55); ctx.shadowBlur = lw * 1.1;
+    ctx.shadowColor = rgba(hot ? bad : acc, hot && alert ? 0.35 + 0.55 * pulse : 0.55); ctx.shadowBlur = lw * (hot && alert ? 0.8 + 1.4 * pulse : 1.1);
     ctx.lineWidth = lw; ctx.strokeStyle = g;
     ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + (a1 - a0) * frac(value)); ctx.stroke();
     ctx.restore();

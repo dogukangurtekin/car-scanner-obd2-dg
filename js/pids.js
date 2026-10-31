@@ -62,6 +62,26 @@ PIDS.forEach((p) => { p.key = p.key || p.id; });
 // Gösterge dışı, yalnızca durum için okunan PID: 0101 (MIL + DTC sayısı + monitör durumu)
 export const STATUS_PID = '01';
 
+// Anormal değer eşikleri (SI birimleriyle). warn: dikkat, crit: kritik. hi: üst, lo: alt, abs: mutlak sapma
+export const ALERTS = {
+  '05': { name: 'Soğutma suyu', unit: '°C', hi: [100, 108], text: 'çok yüksek — motoru kontrol edin' },
+  '5C': { name: 'Yağ sıcaklığı', unit: '°C', hi: [120, 135], text: 'çok yüksek' },
+  '0C': { name: 'Motor devri', unit: 'rpm', hi: [6200, 6600], text: 'kırmızı bölgede' },
+  '06': { name: 'Kısa dönem yakıt düzeltmesi', unit: '%', abs: [15, 25], text: 'normal dışı — karışım hatası olabilir' },
+  '07': { name: 'Uzun dönem yakıt düzeltmesi', unit: '%', abs: [15, 25], text: 'normal dışı — hava kaçağı/enjektör olabilir' },
+  '42': { name: 'Akü / modül voltajı', unit: 'V', lo: [11.8, 11], hi: [15, 15.6], text: 'normal dışı — şarj sistemini kontrol edin' },
+  '0F': { name: 'Emme havası', unit: '°C', hi: [70, 90], text: 'çok yüksek' },
+};
+// -> null | { level: 'warn' | 'crit', msg }
+export function alertOf(key, v) {
+  const a = ALERTS[key];
+  if (!a || v == null || isNaN(v)) return null;
+  const test = (i) => (a.hi && v >= a.hi[i]) || (a.lo && v <= a.lo[i]) || (a.abs && Math.abs(v) >= a.abs[i]);
+  const level = test(1) ? 'crit' : test(0) ? 'warn' : null;
+  if (!level) return null;
+  return { level, msg: `${a.name} ${(+v).toFixed(Math.abs(v) >= 100 ? 0 : 1)} ${a.unit} ${a.text}` };
+}
+
 export const PID_BY_KEY = Object.fromEntries(PIDS.map((p) => [p.key, p]));
 // aynı PID'den türeyen ilk tanım (listeleme için)
 export const PID_BY_ID = {};
