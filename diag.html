@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gelişmiş teşhis (deneysel) — OBD2 Panosu</title>
+<meta name="robots" content="noindex,follow">
+<meta name="color-scheme" content="dark light">
+<script>try{var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="stylesheet" href="css/style.css?v=21">
+<style>
+  .warn { border-color: var(--warn); }
+  .warn b { color: var(--warn); }
+  #log { height: 260px; overflow: auto; background: var(--term); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+  .mod h3 { margin: 0 0 6px; color: var(--text); font-size: 16px; }
+  .mod .st { font-size: 12px; margin-left: 8px; }
+  .mod pre { margin: 6px 0; font: 13px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+  .mods { display: grid; gap: 10px; margin-top: 10px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+  .grid2 label { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gelişmiş teşhis <small>deneysel · salt okunur</small></h1>
+  <span class="pill" id="stConn">Bağlı değil</span>
+  <a class="btn alt themebtn" href="panel.html" style="text-decoration:none">← Panel</a>
+</header>
+<main>
+  <section class="card warn">
+    <p style="margin:0"><b>Salt okunur.</b> Bu sayfa araca hiçbir değer <u>yazmaz</u>; yalnızca modülleri tarar, kimlik, arıza kodu ve ölçüm blokları okur. Her okuma ham haliyle bu cihaza <b>yedeklenir</b>.</p>
+    <p style="margin:8px 0 0;color:var(--muted);font-size:14px">Gereken: <b>bilgisayar</b> (Chrome/Edge) + <b>KKL (VAG-COM 409.1) USB kablosu</b>. HEX-V2/VCDS kablosu desteklenmez (kapalı protokol). Kontağı açın, motor kapalı olsun. Golf 5'te hangi modüllerin K-hattında yanıt verdiğini bu tarama gösterecek.</p>
+  </section>
+
+  <section class="card" style="margin-top:12px">
+    <h3>1. Kablo bağlantısı</h3>
+    <div class="row">
+      <label class="f">Baud <select id="selBaud"><option value="10400">10400</option><option value="9600">9600</option></select></label>
+      <label class="f">Kablo yankısı <select id="selEcho"><option value="auto">Otomatik</option><option value="on">Var</option><option value="off">Yok</option></select></label>
+      <label class="f">DTR / RTS <select id="selSig"><option value="10">DTR 1 · RTS 0</option><option value="01">DTR 0 · RTS 1</option><option value="11">DTR 1 · RTS 1</option><option value="00">DTR 0 · RTS 0</option></select></label>
+      <button class="btn" id="btnConn" style="align-self:flex-end">Kabloyu seç ve bağlan</button>
+      <button class="btn danger hidden" id="btnDisc" style="align-self:flex-end">Bağlantıyı kes</button>
+    </div>
+    <p id="connMsg" style="color:var(--warn);margin:8px 0 0"></p>
+  </section>
+
+  <section class="card" style="margin-top:12px">
+    <h3>2. Modül taraması</h3>
+    <div class="grid2" id="modList"></div>
+    <div class="row" style="margin-top:10px">
+      <label class="f">Elle adres (hex) <input type="text" id="manAddr" placeholder="örn. 1F" style="width:90px"></label>
+      <button class="btn" id="btnScan" style="align-self:flex-end">Seçili modülleri tara</button>
+      <button class="btn alt hidden" id="btnStop" style="align-self:flex-end">Dur</button>
+      <span class="pill" id="scanPill">—</span>
+    </div>
+    <div class="mods" id="mods"></div>
+  </section>
+
+  <section class="card" style="margin-top:12px">
+    <h3>Yedekler (ham okumalar)</h3>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn alt" id="btnSnapDl">Tümünü JSON indir</button>
+      <button class="btn danger" id="btnSnapClr">Yedekleri sil</button>
+      <span class="pill" id="snapPill">0 yedek</span>
+    </div>
+    <table><tbody id="snapBody"></tbody></table>
+  </section>
+
+  <section class="card" style="margin-top:12px">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Oturum günlüğü</h3><button class="btn alt" id="btnLogDl">Günlüğü indir (.txt)</button></div>
+    <div id="log" style="margin-top:8px"></div>
+  </section>
+</main>
+<script type="module" src="js/diag.js?v=21"></script>
+</body>
+</html>

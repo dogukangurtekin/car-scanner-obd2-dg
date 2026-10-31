@@ -19,10 +19,10 @@ export const savePerf = (p) => wr(PK, p);
 // ---- IndexedDB: kayıtlar ----
 function db() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open('obd', 1);
+    const r = indexedDB.open('obd', 2);
     r.onupgradeneeded = () => {
-      r.result.createObjectStore('meta', { keyPath: 'id' });
-      r.result.createObjectStore('rows', { keyPath: 'id' });
+      const d = r.result;
+      for (const n of ['meta', 'rows', 'snap']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' });
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
@@ -52,4 +52,18 @@ export async function recRows(id) {
 export async function recDelete(id) {
   const d = await db();
   await tx(d, ['meta', 'rows'], 'readwrite', (t) => { t.objectStore('meta').delete(id); t.objectStore('rows').delete(id); });
+}
+
+// ---- Teşhis yedekleri (salt okunur okumaların ham kayıtları) ----
+export async function snapSave(snap) {
+  const d = await db();
+  await tx(d, ['snap'], 'readwrite', (t) => { t.objectStore('snap').put(snap); });
+}
+export async function snapList() {
+  const d = await db();
+  return (await req(d.transaction('snap').objectStore('snap').getAll())).sort((a, b) => b.id - a.id);
+}
+export async function snapDelete(id) {
+  const d = await db();
+  await tx(d, ['snap'], 'readwrite', (t) => { t.objectStore('snap').delete(id); });
 }

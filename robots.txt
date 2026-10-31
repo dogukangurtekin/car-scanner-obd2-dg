@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
 Disallow: /panel.html
+Disallow: /diag.html
 Sitemap: https://obd2.bilisimkod.com/sitemap.xml

@@ -9,11 +9,11 @@
 <meta name="robots" content="noindex,follow">
 <meta name="color-scheme" content="dark light">
 <script>try{var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}</script>
-<link rel="stylesheet" href="css/style.css?v=20">
+<link rel="stylesheet" href="css/style.css?v=21">
 </head>
 <body>
 <header>
-  <h1><span id="carName">OBD2 Panosu</span> <small id="carSub">ELM327 · v20</small></h1>
+  <h1><span id="carName">OBD2 Panosu</span> <small id="carSub">ELM327 · v21</small></h1>
   <span class="pill" id="stConn">Bağlı değil</span>
   <span class="pill mil" id="stMil" title="Motor arıza lambası">MIL —</span>
   <span class="pill" id="stVolt">Akü —</span>
@@ -183,6 +183,7 @@
   <!-- ARAÇ -->
   <section id="tab-info" class="hidden">
     <div class="card">
+      <div class="row" style="margin-bottom:10px"><a class="btn alt" href="diag.html" style="text-decoration:none">Gelişmiş teşhis (deneysel · PC + KKL kablo) →</a></div>
       <table><tbody id="infoBody"></tbody></table>
       <div class="row" style="margin-top:10px"><button class="btn alt" id="btnVinOnline">Modeli çevrimiçi doğrula (NHTSA)</button></div>
       <h3 style="margin-top:16px">ECU tanımlayıcıları (Mode 09)</h3>
@@ -242,6 +243,6 @@
     </div>
   </section>
 </main>
-<script type="module" src="js/app.js?v=20"></script>
+<script type="module" src="js/app.js?v=21"></script>
 </body>
 </html>
