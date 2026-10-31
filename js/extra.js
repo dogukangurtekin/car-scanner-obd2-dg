@@ -80,13 +80,43 @@ export function initExtra(ctx) {
   }
 
   // ================= EKRANI AÇIK TUT =================
-  let wl = null;
-  async function wake(on) {
+  // 1) Screen Wake Lock API  2) olmazsa (iOS/Bluefy) görünmez, sessiz canvas-video oynatma yöntemi
+  let wl = null, nv = null, nvTimer = null, wakeWanted = false;
+  const wakeNote = (t) => { const el = $('#wakeNote'); if (el) el.textContent = t; };
+  function videoOn() {
+    if (nv) { nv.play?.().catch(() => {}); return true; }
     try {
-      if (on && 'wakeLock' in navigator) wl = await navigator.wakeLock.request('screen');
-      else { await wl?.release(); wl = null; }
-    } catch {}
+      const cv = document.createElement('canvas'); cv.width = cv.height = 16;
+      const g = cv.getContext('2d'); let k = 0;
+      const draw = () => { g.fillStyle = k++ % 2 ? '#000' : '#010101'; g.fillRect(0, 0, 16, 16); };
+      draw(); nvTimer = setInterval(draw, 500);
+      const stream = cv.captureStream?.(2); if (!stream) { clearInterval(nvTimer); return false; }
+      nv = document.createElement('video');
+      nv.muted = true; nv.defaultMuted = true; nv.loop = true; nv.setAttribute('playsinline', ''); nv.setAttribute('muted', '');
+      nv.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none';
+      nv.srcObject = stream; document.body.append(nv);
+      nv.play().catch(() => {});
+      return true;
+    } catch { return false; }
   }
+  function videoOff() {
+    clearInterval(nvTimer); nvTimer = null;
+    if (nv) { try { nv.pause(); } catch {} nv.srcObject = null; nv.remove(); nv = null; }
+  }
+  async function wake(on) {
+    wakeWanted = on;
+    if (!on) {
+      try { await wl?.release(); } catch {}
+      wl = null; videoOff(); wakeNote('');
+      return;
+    }
+    try {
+      if ('wakeLock' in navigator) { wl = await navigator.wakeLock.request('screen'); wakeNote('Ekran açık tutuluyor (Wake Lock).'); return; }
+    } catch {}
+    wakeNote(videoOn() ? 'Ekran açık tutuluyor (video yöntemi). Kapanırsa ekrana bir kez dokunun.' : 'Bu tarayıcı ekranı açık tutmayı desteklemiyor; telefonun Otomatik Kilit ayarını "Hiçbir Zaman" yapın.');
+  }
+  // video yöntemi bazı tarayıcılarda yalnızca kullanıcı dokunuşuyla başlar
+  document.addEventListener('pointerdown', () => { if (wakeWanted && !wl && nv && nv.paused) nv.play().catch(() => {}); }, { passive: true });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && S.running && st().wake) wake(true); });
 
   // ================= TÜM SENSÖRLER =================
