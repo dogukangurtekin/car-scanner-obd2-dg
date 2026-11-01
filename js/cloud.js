@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=34';
-import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=34';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=35';
+import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=35';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -181,11 +181,12 @@ async function load() {
   a.getRedirectResult(auth).catch((e) => toastFn('Giriş yapılamadı: ' + (e.code || e.message), true));
   a.onAuthStateChanged(auth, async (u) => {
     user = u; ui();
-    if (!u) { if (scope()) { setScope(''); location.reload(); } return; }
-    toastFn('Giriş yapıldı: ' + (u.displayName || u.email));
+    if (!u) { try { sessionStorage.removeItem('obdLoginToast'); } catch {} if (scope()) { setScope(''); location.reload(); } return; }
+    // Kapsam geçişi ve veri yüklemesi sayfayı yenilediği için bildirim oturum başına bir kez gösterilir
+    try { if (sessionStorage.getItem('obdLoginToast') !== u.uid) { sessionStorage.setItem('obdLoginToast', u.uid); toastFn('Giriş yapıldı: ' + (u.displayName || u.email)); } } catch { toastFn('Giriş yapıldı: ' + (u.displayName || u.email)); }
     try {
       // Hesaba ait veriler ayrı kapsamda tutulur; kapsam bu hesap değilse geçip yenile
-      if (scope() !== u.uid) { setScope(u.uid); location.reload(); return; }
+      if (scope() !== u.uid) { await syncSettings().catch(() => {}); setScope(u.uid); location.reload(); return; }
       await pushPending(); await pushRecs();
       const n = await pullAll(), r = await pullRecs(), s = await syncSettings();
       if (n || r || s) { toastFn(`${n} yolculuk, ${r} kayıt hesabınızdan yüklendi`); location.reload(); }
