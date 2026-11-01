@@ -84,10 +84,11 @@ export async function initCloud({ toast, onChange }) {
       if (!A) await load();
       if (user) {
         // Ortak tarayıcıda bir sonraki kişi bu hesabın yolculuklarını görmesin: önce buluta gönder, sonra yerelden temizle
-        await pushPending();
-        await wipeLocal();
-        await A.signOut(auth);
-        location.reload();
+        try {
+          await pushPending();
+          await wipeLocal();
+          await A.signOut(auth);
+        } finally { location.reload(); }
         return;
       }
       // iOS/Safari (Bluefy dahil) açılır pencereyi sekme olarak açıp oturum bilgisini kaybeder: aynı sekmede yönlendirme kullan
