@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=29';
-import { loadTrips, saveTrip, clearTrips, tserGet, tserSave, tserClear, recList, recRows, recSave, recClear } from './store.js?v=29';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=30';
+import { loadTrips, saveTrip, clearTrips, tserGet, tserSave, tserClear, recList, recRows, recSave, recClear } from './store.js?v=30';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -137,10 +137,9 @@ export async function initCloud({ toast, onChange }) {
     try {
       if (!A) await load();
       if (user) {
-        // Ortak tarayıcıda bir sonraki kişi bu hesabın yolculuklarını görmesin: önce buluta gönder, sonra yerelden temizle
+        // Çıkışta yerel veriler silinmez (kullanıcı silmedikçe kalır); yalnızca önce buluta gönderilir. Farklı hesapla girişte temizlenir.
         try {
           await pushPending(); await pushRecs();
-          await wipeLocal();
           await A.signOut(auth);
         } finally { location.reload(); }
         return;
