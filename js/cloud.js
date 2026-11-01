@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=36';
-import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=36';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=37';
+import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=37';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -116,7 +116,9 @@ async function syncSettings() {
   const local = localStorage.getItem(SKEY());
   if (snap.exists()) {
     const remote = snap.data().json;
-    if (remote && remote !== local) { localStorage.setItem(SKEY(), remote); return true; }
+    // Yalnızca araç profilleri farklıysa hesaptakiler alınır (yenileme gerekir); diğer ayar farkları yenilemeyi tetiklemesin
+    const pick = (j) => { try { const o = JSON.parse(j || '{}'); return JSON.stringify([o.profiles || [], o.activeProfile || null]); } catch { return ''; } };
+    if (remote && pick(remote) !== pick(local)) { localStorage.setItem(SKEY(), remote); return true; }
     return false;
   }
   if (local) await F.setDoc(setsRef(), { json: local, savedAt: Date.now() });
