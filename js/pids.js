@@ -83,7 +83,9 @@ export function alertOf(key, v) {
   return { level, msg: `${a.name} ${(+v).toFixed(Math.abs(v) >= 100 ? 0 : 1)} ${a.unit} ${a.text}` };
 }
 
-export const PID_BY_KEY = Object.fromEntries(PIDS.map((p) => [p.key, p]));
+// Telefonun/bilgisayarın GPS'inden gelen rakım: OBD'den okunmaz (gps: true), Geolocation ile beslenir
+export const GPS_PID = { id: 'GPS', key: 'gpsAlt', gps: true, name: 'GPS Rakımı', unit: 'm', min: 0, max: 3000, dec: 0, f: (a) => a, grp: 'Konum' };
+export const PID_BY_KEY = Object.fromEntries([...PIDS, GPS_PID].map((p) => [p.key, p]));
 // aynı PID'den türeyen ilk tanım (listeleme için)
 export const PID_BY_ID = {};
 for (const p of PIDS) PID_BY_ID[p.id] ||= p;

@@ -1,13 +1,13 @@
-import { PIDS, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=33';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=33';
-import { ELM } from './elm.js?v=33';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=33';
-import { dtcDescribe } from './dtc.js?v=33';
-import { drawGauge, drawLine } from './charts.js?v=33';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=33';
-import { saveTrip, tserSave } from './store.js?v=33';
-import { initExtra } from './extra.js?v=33';
-import { initCloud, pushPending } from './cloud.js?v=33';
+import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=34';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=34';
+import { ELM } from './elm.js?v=34';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=34';
+import { dtcDescribe } from './dtc.js?v=34';
+import { drawGauge, drawLine } from './charts.js?v=34';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=34';
+import { saveTrip, tserSave } from './store.js?v=34';
+import { initExtra } from './extra.js?v=34';
+import { initCloud, pushPending } from './cloud.js?v=34';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -65,7 +65,7 @@ const valsMap = () => {
 const newTrip = () => ({
   id: Date.now(), start: Date.now(), t: 0, dist: 0, fuel: 0, vmax: 0, rmax: 0, idle: 0, vsum: 0, vt: 0, cmax: -99,
   rpmH: new Array(8).fill(0), spdH: new Array(8).fill(0), inst: null, lph: null,
-  ser: { iv: 5, acc: 0, d: [], cols: [...new Set([...PIDS.map((p) => p.key), 'lph', 'inst', 'fuel', 'dist'])] },
+  ser: { iv: 5, acc: 0, d: [], cols: [...new Set([...PIDS.map((p) => p.key), 'gpsAlt', 'lph', 'inst', 'fuel', 'dist'])] },
 });
 S.trip = newTrip();
 
@@ -218,8 +218,10 @@ async function connect() {
     if (!S.defs.length) throw new Error('Araç hiçbir standart PID bildirmedi.');
     S.byId = new Map();
     for (const p of S.defs) (S.byId.get(p.id) ?? S.byId.set(p.id, []).get(p.id)).push(p);
+    if (navigator.geolocation) S.defs.push(GPS_PID);
     S.latest = {}; S.hist = {}; S.status = null; S.trip = newTrip(); S.pend = {}; S.lastT = now();
     S.running = true;
+    startGps();
     $('#connect').classList.add('hidden');
     $('#btnDisc').classList.remove('hidden');
     $('#stConn').textContent = kind === 'sim' ? 'Demo' : 'Bağlı';
@@ -247,7 +249,20 @@ async function connect() {
   } finally { $('#btnConn').disabled = false; }
 }
 
+function startGps() {
+  stopGps();
+  if (!navigator.geolocation) return;
+  try {
+    S.gpsId = navigator.geolocation.watchPosition(
+      (pos) => { const a = pos.coords.altitude; if (a != null && isFinite(a)) onValue('gpsAlt', a); },
+      (e) => { if (e.code === 1) toast('Konum izni verilmedi: GPS rakımı gösterilemez', true); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+  } catch {}
+}
+function stopGps() { if (S.gpsId != null) { try { navigator.geolocation.clearWatch(S.gpsId); } catch {} S.gpsId = null; } }
+
 async function disconnect(silent) {
+  stopGps();
   await persistTrip();
   pushPending();
   S.running = false;
