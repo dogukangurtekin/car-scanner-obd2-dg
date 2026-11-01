@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=25';
-import { loadTrips, saveTrip, tserGet, tserSave } from './store.js?v=25';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=26';
+import { loadTrips, saveTrip, tserGet, tserSave } from './store.js?v=26';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);

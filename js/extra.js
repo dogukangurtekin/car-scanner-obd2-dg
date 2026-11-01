@@ -1,11 +1,11 @@
-import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=25';
-import { dtcDescribe } from './dtc.js?v=25';
-import { drawBars, drawLine, drawCombo } from './charts.js?v=25';
-import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=25';
-import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=25';
-import { PerfEngine, TESTS } from './perf.js?v=25';
-import { removeRemote } from './cloud.js?v=25';
-import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=25';
+import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=26';
+import { dtcDescribe } from './dtc.js?v=26';
+import { drawBars, drawLine, drawCombo } from './charts.js?v=26';
+import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=26';
+import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=26';
+import { PerfEngine, TESTS } from './perf.js?v=26';
+import { removeRemote } from './cloud.js?v=26';
+import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=26';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -40,20 +40,50 @@ export function initExtra(ctx) {
   function fillSettings() {
     const s = st();
     $('#setSpeed').value = s.speed; $('#setTemp').value = s.temp; $('#setPress').value = s.press; $('#setCons').value = s.cons;
-    $('#setPrice').value = s.price; $('#setCur').value = s.cur; $('#setWake').checked = !!s.wake;
+    $('#setPrice').value = s.price; $('#setCur').value = s.cur; $('#setWake').checked = !!s.wake; $('#setAutoPrice').checked = !!s.autoPrice; $('#setProv').value = s.province || 34;
+    if (s.priceSrc) priceNote(`${s.priceSrc}: ${(+s.price).toFixed(2)} ₺/L — ${new Date(s.priceAt).toLocaleString('tr-TR')}`);
     fillProfiles();
   }
   for (const [id, key] of [['#setSpeed', 'speed'], ['#setTemp', 'temp'], ['#setPress', 'press'], ['#setCons', 'cons']]) {
     $(id).addEventListener('change', () => { S.settings[key] = $(id).value; save(); });
   }
   $('#setPrice').addEventListener('input', () => { S.settings.price = Math.max(0, parseFloat($('#setPrice').value) || 0); save(); });
+  // ---- güncel pompa fiyatı (Opet, fuel-price.php üzerinden) ----
+  const priceNote = (t, err) => { const el = $('#priceNote'); el.textContent = t; el.style.color = err ? 'var(--bad)' : ''; };
+  async function fetchPrice(manual) {
+    const fuel = prof().fuel;
+    if (fuel === 'lpg') { if (manual) priceNote('LPG fiyatı için ücretsiz resmi kaynak yok, elle girin.', true); return; }
+    try {
+      const r = await fetch('fuel-price.php?province=' + (st().province || 34), { cache: 'no-store' });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || r.status);
+      const v = fuel === 'diesel' ? d.motorin : d.benzin;
+      if (!v) throw new Error('fiyat bulunamadı');
+      S.settings.price = v; S.settings.cur = '₺'; S.settings.priceAt = Date.now(); S.settings.priceSrc = `${d.source} ${d.province} · ${fuel === 'diesel' ? 'Motorin' : 'Benzin 95'}`;
+      save(); $('#setPrice').value = v; $('#setCur').value = '₺';
+      priceNote(`${S.settings.priceSrc}: ${v.toFixed(2)} ₺/L — ${new Date().toLocaleString('tr-TR')}`);
+      if (manual) toast('Yakıt fiyatı güncellendi: ' + v.toFixed(2) + ' ₺');
+    } catch (e) {
+      priceNote('Fiyat alınamadı: ' + e.message, true);
+      if (manual) toast('Fiyat alınamadı (' + e.message + ')', true);
+    }
+  }
+  fetch('fuel-price.php?list=1').then((r) => r.json()).then((list) => {
+    const sel = $('#setProv');
+    sel.innerHTML = list.map((x) => `<option value="${x.code}">${esc(x.name.charAt(0) + x.name.slice(1).toLocaleLowerCase('tr-TR'))}</option>`).join('');
+    sel.value = st().province || 34;
+  }).catch(() => {});
+  $('#setProv').addEventListener('change', () => { S.settings.province = +$('#setProv').value; save(); if (st().autoPrice) fetchPrice(true); });
+  $('#setAutoPrice').addEventListener('change', () => { S.settings.autoPrice = $('#setAutoPrice').checked; save(); if (S.settings.autoPrice) fetchPrice(true); });
+  $('#btnPrice').addEventListener('click', () => fetchPrice(true));
+  if (st().autoPrice && Date.now() - (st().priceAt || 0) > 6 * 3600e3) fetchPrice(false);
   $('#setCur').addEventListener('input', () => { S.settings.cur = $('#setCur').value.slice(0, 4); save(); });
   $('#setWake').addEventListener('change', () => { S.settings.wake = $('#setWake').checked; save(); wake(S.running && S.settings.wake); });
   $('#profSel').addEventListener('change', () => { S.settings.activeProfile = $('#profSel').value; save(); fillProfiles(); updateCar(); });
   const editProf = (fn) => { fn(prof()); save(); const o = $('#profSel').selectedOptions[0]; if (o) o.textContent = prof().name; };
   $('#profName').addEventListener('input', () => editProf((p) => { p.name = $('#profName').value || 'Araç'; }));
   $('#profDisp').addEventListener('input', () => editProf((p) => { p.disp = Math.min(10, Math.max(0.5, parseFloat($('#profDisp').value) || 1.6)); }));
-  $('#profFuel').addEventListener('change', () => editProf((p) => { p.fuel = $('#profFuel').value; }));
+  $('#profFuel').addEventListener('change', () => { editProf((p) => { p.fuel = $('#profFuel').value; }); if (st().autoPrice) fetchPrice(true); });
   $('#profTank').addEventListener('input', () => editProf((p) => { p.tank = Math.min(200, Math.max(10, parseFloat($('#profTank').value) || 55)); }));
   $('#btnProfNew').addEventListener('click', () => {
     const p = { ...DEFAULT_PROFILE, id: 'p' + Date.now(), name: 'Yeni araç' };
