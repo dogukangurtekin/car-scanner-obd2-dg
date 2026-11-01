@@ -1,11 +1,11 @@
-import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=37';
-import { dtcDescribe } from './dtc.js?v=37';
-import { drawBars, drawLine, drawCombo } from './charts.js?v=37';
-import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=37';
-import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=37';
-import { PerfEngine, TESTS } from './perf.js?v=37';
-import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=37';
-import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=37';
+import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=38';
+import { dtcDescribe } from './dtc.js?v=38';
+import { drawBars, drawLine, drawCombo } from './charts.js?v=38';
+import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=38';
+import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=38';
+import { PerfEngine, TESTS } from './perf.js?v=38';
+import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=38';
+import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=38';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -304,7 +304,7 @@ export function initExtra(ctx) {
   // ---- yolculuk ayrıntısı (satıra tıklayınca): özet + dağılımlar + zaman grafikleri ----
   const SERIES = [['Hız', '0D', 'km/h', '#3ddc84'], ['Devir', '0C', 'rpm', '#3fb6ff'], ['Su sıcaklığı', '05', '°C', '#ff7a59'], ['Motor yükü', '04', '%', '#b48cff'],
     ['Gaz kelebeği', '11', '%', '#ffd23f'], ['MAP', '0B', 'kPa', '#4dd0c8'], ['MAF', '10', 'g/s', '#80cbc4'], ['Emme havası', '0F', '°C', '#ff9ecb'], ['Akü', '42', 'V', '#9ccc65'],
-    ['Anlık yakıt', 'lph', 'L/sa', '#ffa726'], ['Anlık tüketim', 'inst', 'L/100km', '#ef5350']];
+    ['GPS rakımı', 'gpsAlt', 'm', '#8d6e63'], ['Rakım (barometrik)', '33h', 'm', '#a1887f'], ['Anlık yakıt', 'lph', 'L/sa', '#ffa726'], ['Anlık tüketim', 'inst', 'L/100km', '#ef5350']];
   const COMPUTED = { lph: ['Anlık yakıt akışı', 'L/sa'], inst: ['Anlık tüketim', 'L/100km'], fuel: ['Yolculukta kullanılan yakıt', 'L'], dist: ['Yolculukta katedilen mesafe', 'km'] };
   let detail = null;
   const tmFmt = (s) => { s = Math.round(s); return s >= 3600 ? `${Math.floor(s / 3600)}sa${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}` : `${Math.floor(s / 60)}dk`; };
