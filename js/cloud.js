@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=30';
-import { loadTrips, saveTrip, clearTrips, tserGet, tserSave, tserClear, recList, recRows, recSave, recClear } from './store.js?v=30';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=31';
+import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=31';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -25,12 +25,8 @@ function ui() {
   }
 }
 
-async function wipeLocal() {
-  clearTrips();
-  try { await tserClear(); } catch {}
-  try { await recClear(); } catch {}
-  try { localStorage.removeItem('obdOwner'); } catch {}
-}
+const scope = () => { try { return localStorage.getItem('obdScope') || ''; } catch { return ''; } };
+const setScope = (v) => { try { if (v) localStorage.setItem('obdScope', v); else localStorage.removeItem('obdScope'); } catch {} };
 
 export async function pushPending() {
   if (!user || busy) return 0;
@@ -164,19 +160,11 @@ async function load() {
   a.getRedirectResult(auth).catch((e) => toastFn('Giriş yapılamadı: ' + (e.code || e.message), true));
   a.onAuthStateChanged(auth, async (u) => {
     user = u; ui();
-    if (!u) return;
+    if (!u) { if (scope()) { setScope(''); location.reload(); } return; }
     toastFn('Giriş yapıldı: ' + (u.displayName || u.email));
     try {
-      // Bu tarayıcıdaki yerel kayıtlar başka bir hesaba aitse karışmasın
-      let owner = null; try { owner = localStorage.getItem('obdOwner'); } catch {}
-      // Girişten önce yapılan yerel (deneme) veriler hesaba karışmasın: bu tarayıcı bu hesaba ilk kez bağlanırken temizlenir
-      if (owner !== u.uid) {
-        await wipeLocal();
-        try { localStorage.setItem('obdOwner', u.uid); } catch {}
-        const a = await pullAll(), b = await pullRecs();
-        if (a || b) toastFn(`${a} yolculuk, ${b} kayıt hesabınızdan yüklendi`);
-        location.reload(); return;
-      }
+      // Hesaba ait veriler ayrı kapsamda tutulur; kapsam bu hesap değilse geçip yenile
+      if (scope() !== u.uid) { setScope(u.uid); location.reload(); return; }
       await pushPending(); await pushRecs();
       const n = await pullAll(), r = await pullRecs();
       if (n || r) { toastFn(`${n} yolculuk, ${r} kayıt hesabınızdan yüklendi`); location.reload(); }

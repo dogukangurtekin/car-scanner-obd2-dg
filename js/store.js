@@ -1,5 +1,7 @@
 // Yerel depolama: yolculuk özetleri (localStorage), kayıtlar (IndexedDB), performans sonuçları
-const TK = 'obdTrips', PK = 'obdPerf';
+// Veri kapsamı: girişsiz (misafir) ve her Google hesabı ayrı depolanır, birbirine karışmaz (cloud.js değiştirir, sayfa yenilenir)
+const SC = (() => { try { return localStorage.getItem('obdScope') || ''; } catch { return ''; } })();
+const TK = 'obdTrips' + (SC ? ':' + SC : ''), PK = 'obdPerf' + (SC ? ':' + SC : '');
 
 const rd = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? d; } catch { return d; } };
 const wr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
@@ -42,7 +44,7 @@ export const savePerf = (p) => wr(PK, p);
 // ---- IndexedDB: kayıtlar ----
 function db() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open('obd', 3);
+    const r = indexedDB.open('obd' + (SC ? '-' + SC : ''), 3);
     r.onupgradeneeded = () => {
       const d = r.result;
       for (const n of ['meta', 'rows', 'snap', 'tser']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' });
