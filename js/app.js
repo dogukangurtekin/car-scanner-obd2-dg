@@ -65,7 +65,7 @@ function shareDialog(name, file) {
 }
 async function saveFile(name, text, mime = 'text/csv') {
   let file = null;
-  try { file = new File(['﻿' + text], name, { type: mime }); } catch {}
+  try { file = new File([text], name, { type: mime }); } catch {}
   const canShare = !!(file && navigator.canShare?.({ files: [file] }));
   if (canShare && (IOS || !('download' in HTMLAnchorElement.prototype))) {
     try { await navigator.share({ files: [file], title: name }); return; } catch (e) {
