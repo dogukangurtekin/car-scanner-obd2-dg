@@ -1,0 +1,43 @@
+name: Yakıt fiyatları
+
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+
+# Opet fiyat servisi barındırma sunucusuna kapalı; GitHub'ın makinesi çekip fuel-prices.json'u sunucuya gönderir.
+jobs:
+  fiyat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Opet fiyatlarını çek
+        run: |
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 90 -A "Mozilla/5.0" -H "Origin: https://www.opet.com.tr" -H "Referer: https://www.opet.com.tr/" \
+            "https://api.opet.com.tr/api/fuelprices/allprices" -o all.json
+          python3 - <<'PY'
+          import json, datetime
+          rows = json.load(open('all.json', encoding='utf-8'))
+          by = {}
+          for d in rows:
+              e = by.setdefault(str(d['provinceCode']), {'n': d['provinceName'], 'b': [], 'm': []})
+              pr = {p['productCode']: p['amount'] for p in d['prices']}
+              if 'A100' in pr: e['b'].append(pr['A100'])
+              m = pr.get('A128', pr.get('A121'))
+              if m is not None: e['m'].append(m)
+          med = lambda a: sorted(a)[(len(a) - 1) // 2] if a else None
+          out = {'source': 'Opet', 'at': datetime.datetime.utcnow().isoformat() + 'Z',
+                 'provinces': {k: {'n': v['n'], 'b': med(v['b']), 'm': med(v['m'])} for k, v in by.items() if v['b'] or v['m']}}
+          assert len(out['provinces']) > 50, 'beklenenden az il'
+          json.dump(out, open('fuel-prices.json', 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+          print(len(out['provinces']), 'il')
+          PY
+      - name: Sunucuya gönder
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -avz
+          path: fuel-prices.json
+          remote_path: ${{ secrets.SSH_PATH }}
+          remote_host: ${{ secrets.SSH_HOST }}
+          remote_port: 65002
+          remote_user: ${{ secrets.SSH_USER }}
+          remote_key: ${{ secrets.SSH_KEY }}

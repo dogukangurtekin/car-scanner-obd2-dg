@@ -2,7 +2,7 @@
 const KEY = 'obdSettings';
 
 export const DEFAULTS = {
-  speed: 'kmh', temp: 'c', press: 'kpa', cons: 'l100', price: 0, cur: '₺', wake: true, autoPrice: false, province: 34, priceAt: 0, priceSrc: '',
+  speed: 'kmh', temp: 'c', press: 'kpa', cons: 'l100', price: 0, cur: '₺', wake: true, autoPrice: true, province: 34, priceAt: 0, priceFuel: '',
   activeProfile: null, profiles: [],
 };
 export const DEFAULT_PROFILE = { id: 'default', name: 'Varsayılan araç', vin: '', disp: 1.6, fuel: 'petrol', tank: 55 };
