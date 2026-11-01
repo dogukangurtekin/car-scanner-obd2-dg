@@ -1,13 +1,13 @@
-import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=39';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=39';
-import { ELM } from './elm.js?v=39';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=39';
-import { dtcDescribe } from './dtc.js?v=39';
-import { drawGauge, drawLine } from './charts.js?v=39';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=39';
-import { saveTrip, tserSave } from './store.js?v=39';
-import { initExtra } from './extra.js?v=39';
-import { initCloud, pushPending } from './cloud.js?v=39';
+import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=40';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=40';
+import { ELM } from './elm.js?v=40';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=40';
+import { dtcDescribe } from './dtc.js?v=40';
+import { drawGauge, drawLine } from './charts.js?v=40';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=40';
+import { saveTrip, tserSave } from './store.js?v=40';
+import { initExtra } from './extra.js?v=40';
+import { initCloud, pushPending } from './cloud.js?v=40';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -37,21 +37,43 @@ const termLog = (kind, text) => {
   t.scrollTop = t.scrollHeight;
 };
 
-// Metni dosya olarak kaydet: önce paylaşım menüsü (iOS), olmazsa indirme bağlantısı
-async function saveFile(name, text, mime = 'text/csv') {
-  // Önce doğrudan indirme; yalnızca tarayıcı indirmeyi desteklemiyorsa paylaşım menüsü
-  if (!('download' in HTMLAnchorElement.prototype)) {
-    try {
-      const file = new File([text], name, { type: mime });
-      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
-    } catch (e) { if (e.name === 'AbortError') return; }
-  }
+// Metni dosya olarak kaydet. iOS/iPadOS'ta (Safari, Bluefy dahil) <a download> sessizce başarısız olur:
+// önce paylaşım menüsü ("Dosyalara Kaydet"), kullanıcı hareketi süresi dolduysa tek dokunuşluk onay penceresi, en son indirme bağlantısı
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function downloadLink(name, text, mime) {
   const url = URL.createObjectURL(new Blob([text], { type: mime }));
   const a = document.createElement('a');
   a.href = url; a.download = name; a.style.display = 'none';
   document.body.append(a); a.click();
   setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 10000);
   toast('İndiriliyor: ' + name);
+}
+function shareDialog(name, file) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--card,#fff);color:var(--text,#111);border-radius:14px;padding:18px;max-width:340px;width:100%;text-align:center;font:15px system-ui';
+  box.innerHTML = '<p style="margin:0 0 12px"><b></b> hazır.</p>';
+  box.querySelector('b').textContent = name;
+  const go = document.createElement('button'), no = document.createElement('button');
+  go.textContent = 'Kaydet / Paylaş'; no.textContent = 'Kapat';
+  go.style.cssText = 'padding:10px 18px;border:0;border-radius:10px;background:#2b6fe0;color:#fff;font:600 15px system-ui;margin:4px';
+  no.style.cssText = 'padding:10px 18px;border:0;border-radius:10px;background:#8883;color:inherit;font:15px system-ui;margin:4px';
+  go.onclick = async () => { try { await navigator.share({ files: [file], title: name }); wrap.remove(); } catch (e) { if (e.name === 'AbortError') wrap.remove(); else toast('Paylaşılamadı: ' + e.message, true); } };
+  no.onclick = () => wrap.remove();
+  box.append(go, no); wrap.append(box); document.body.append(wrap);
+}
+async function saveFile(name, text, mime = 'text/csv') {
+  let file = null;
+  try { file = new File(['﻿' + text], name, { type: mime }); } catch {}
+  const canShare = !!(file && navigator.canShare?.({ files: [file] }));
+  if (canShare && (IOS || !('download' in HTMLAnchorElement.prototype))) {
+    try { await navigator.share({ files: [file], title: name }); return; } catch (e) {
+      if (e.name === 'AbortError') return;
+      if (e.name === 'NotAllowedError') return shareDialog(name, file); // dokunma izni süresi dolmuş: yeni dokunuş iste
+    }
+  }
+  downloadLink(name, text, mime);
 }
 
 const val = (key) => S.latest[key]?.v ?? null;
