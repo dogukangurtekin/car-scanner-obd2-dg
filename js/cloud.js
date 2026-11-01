@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=31';
-import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=31';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=32';
+import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=32';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -102,6 +102,27 @@ async function pullRecs() {
   return n;
 }
 
+// Ayarlar + araç profilleri: hesapta varsa hesaptaki gelir, yoksa bu cihazdakiler hesaba yazılır
+const setsRef = () => F.doc(fs, 'users', user.uid, 'meta', 'settings');
+const SKEY = () => 'obdSettings:' + user.uid;
+let setsTimer;
+window.addEventListener('obd-settings-saved', (e) => {
+  if (!user || !F || !scope()) return;
+  clearTimeout(setsTimer);
+  setsTimer = setTimeout(() => { F.setDoc(setsRef(), { json: JSON.stringify(e.detail), savedAt: Date.now() }).catch(() => {}); }, 1500);
+});
+async function syncSettings() {
+  const snap = await F.getDoc(setsRef());
+  const local = localStorage.getItem(SKEY());
+  if (snap.exists()) {
+    const remote = snap.data().json;
+    if (remote && remote !== local) { localStorage.setItem(SKEY(), remote); return true; }
+    return false;
+  }
+  if (local) await F.setDoc(setsRef(), { json: local, savedAt: Date.now() });
+  return false;
+}
+
 export async function removeRemote(id) {
   if (!user || !F) return;
   try { await F.deleteDoc(F.doc(fs, 'users', user.uid, 'trips', String(id))); } catch (e) { toastFn('Hesaptan silinemedi: ' + (e.code || e.message), true); }
@@ -166,8 +187,8 @@ async function load() {
       // Hesaba ait veriler ayrı kapsamda tutulur; kapsam bu hesap değilse geçip yenile
       if (scope() !== u.uid) { setScope(u.uid); location.reload(); return; }
       await pushPending(); await pushRecs();
-      const n = await pullAll(), r = await pullRecs();
-      if (n || r) { toastFn(`${n} yolculuk, ${r} kayıt hesabınızdan yüklendi`); location.reload(); }
+      const n = await pullAll(), r = await pullRecs(), s = await syncSettings();
+      if (n || r || s) { toastFn(`${n} yolculuk, ${r} kayıt hesabınızdan yüklendi`); location.reload(); }
     } catch (e) { toastFn('Eşitleme hatası: ' + (e.code || e.message), true); }
   });
 }

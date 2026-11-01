@@ -1,5 +1,6 @@
 // Ayarlar, birim çevirme, yakıt/güç hesapları
-const KEY = 'obdSettings';
+// Misafir ve her Google hesabı kendi ayarlarını (araç profilleri dahil) ayrı anahtarda tutar
+const KEY = 'obdSettings' + (() => { try { const s = localStorage.getItem('obdScope'); return s ? ':' + s : ''; } catch { return ''; } })();
 
 export const DEFAULTS = {
   speed: 'kmh', temp: 'c', press: 'kpa', cons: 'l100', price: 0, cur: '₺', wake: true, autoPrice: true, province: 34, priceAt: 0, priceFuel: '',
@@ -10,7 +11,11 @@ export const DEFAULT_PROFILE = { id: 'default', name: 'Varsayılan araç', vin: 
 export function loadSettings() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEFAULTS }; }
 }
-export function saveSettings(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {} }
+export function saveSettings(s) {
+  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {}
+  try { window.dispatchEvent(new CustomEvent('obd-settings-saved', { detail: s })); } catch {}
+}
+export const settingsKey = KEY;
 export const activeProfile = (s) => s.profiles.find((p) => p.id === s.activeProfile) || { ...DEFAULT_PROFILE };
 
 export const FUEL = {
