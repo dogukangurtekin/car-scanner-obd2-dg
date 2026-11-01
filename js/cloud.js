@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=35';
-import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=35';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=36';
+import { loadTrips, saveTrip, tserGet, tserSave, recList, recRows, recSave } from './store.js?v=36';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -172,8 +172,10 @@ export async function initCloud({ toast, onChange }) {
   if (configured) { try { await load(); } catch (e) { /* çevrimdışı olabilir; giriş düğmesi yine de çalışır */ } }
 }
 
-async function load() {
-  if (A) return;
+let loading;
+// Aynı anda birden çok çağrı (başlangıç + düğme) olursa dinleyiciler çiftlenmesin: tek söz paylaşılır
+function load() { return loading ||= doLoad().catch((e) => { loading = null; throw e; }); }
+async function doLoad() {
   const [app, a, f] = await Promise.all([import(FB + 'firebase-app.js'), import(FB + 'firebase-auth.js'), import(FB + 'firebase-firestore.js')]);
   A = a; F = f;
   auth = a.getAuth(app.initializeApp(FIREBASE_CONFIG));
