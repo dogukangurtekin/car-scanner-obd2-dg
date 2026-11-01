@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=28';
-import { loadTrips, saveTrip, clearTrips, tserGet, tserSave, tserClear } from './store.js?v=28';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=29';
+import { loadTrips, saveTrip, clearTrips, tserGet, tserSave, tserClear, recList, recRows, recSave, recClear } from './store.js?v=29';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -28,6 +28,7 @@ function ui() {
 async function wipeLocal() {
   clearTrips();
   try { await tserClear(); } catch {}
+  try { await recClear(); } catch {}
   try { localStorage.removeItem('obdOwner'); } catch {}
 }
 
@@ -50,6 +51,59 @@ export async function pushPending() {
     toastFn('Hesaba kaydedilemedi: ' + (e.code || e.message), true);
     return 0;
   } finally { busy = false; }
+}
+
+const RCH = 40000; // belge başına en çok bu kadar sayı (Firestore 1 MB sınırı; iç içe dizi yasak olduğu için düz dizi)
+const syncedRec = () => { try { return new Set(JSON.parse(localStorage.getItem('obdSyncedRec:' + user.uid) || '[]')); } catch { return new Set(); } };
+const markRec = (s) => { try { localStorage.setItem('obdSyncedRec:' + user.uid, JSON.stringify([...s].slice(-1000))); } catch {} };
+
+export async function pushRecs() {
+  if (!user || !F) return 0;
+  try {
+    const done = syncedRec();
+    let n = 0;
+    for (const m of await recList()) {
+      if (done.has(m.id)) continue;
+      const rows = await recRows(m.id), w = m.keys.length + 1, flat = rows.flat();
+      const base = F.doc(fs, 'users', user.uid, 'recs', String(m.id));
+      const per = Math.max(w, Math.floor(RCH / w) * w), parts = Math.max(1, Math.ceil(flat.length / per));
+      for (let i = 0; i < parts; i++) await F.setDoc(F.doc(base, 'rows', String(i)), { d: flat.slice(i * per, (i + 1) * per) });
+      await F.setDoc(base, { ...m, w, parts, savedAt: Date.now() });
+      done.add(m.id); n++;
+    }
+    markRec(done);
+    if (n) toastFn(`${n} kayıt Google hesabınıza kaydedildi`);
+    return n;
+  } catch (e) { toastFn('Kayıt hesaba kaydedilemedi: ' + (e.code || e.message), true); return 0; }
+}
+
+export async function removeRemoteRec(id) {
+  if (!user || !F) return;
+  try {
+    const base = F.doc(fs, 'users', user.uid, 'recs', String(id));
+    const sub = await F.getDocs(F.collection(base, 'rows'));
+    for (const d of sub.docs) await F.deleteDoc(d.ref);
+    await F.deleteDoc(base);
+  } catch (e) { toastFn('Kayıt hesaptan silinemedi: ' + (e.code || e.message), true); }
+}
+
+async function pullRecs() {
+  const have = new Set((await recList()).map((m) => m.id));
+  const done = syncedRec();
+  let n = 0;
+  for (const d of (await F.getDocs(F.collection(fs, 'users', user.uid, 'recs'))).docs) {
+    const m = d.data(); delete m.savedAt;
+    done.add(m.id);
+    if (have.has(m.id)) continue;
+    const flat = [];
+    for (let i = 0; i < m.parts; i++) { const r = await F.getDoc(F.doc(d.ref, 'rows', String(i))); if (r.exists()) flat.push(...r.data().d); }
+    const w = m.w, rows = [];
+    for (let i = 0; i + w <= flat.length; i += w) rows.push(flat.slice(i, i + w));
+    delete m.w; delete m.parts;
+    await recSave(m, rows); n++;
+  }
+  markRec(done);
+  return n;
 }
 
 export async function removeRemote(id) {
@@ -85,7 +139,7 @@ export async function initCloud({ toast, onChange }) {
       if (user) {
         // Ortak tarayıcıda bir sonraki kişi bu hesabın yolculuklarını görmesin: önce buluta gönder, sonra yerelden temizle
         try {
-          await pushPending();
+          await pushPending(); await pushRecs();
           await wipeLocal();
           await A.signOut(auth);
         } finally { location.reload(); }
@@ -116,11 +170,17 @@ async function load() {
     try {
       // Bu tarayıcıdaki yerel kayıtlar başka bir hesaba aitse karışmasın
       let owner = null; try { owner = localStorage.getItem('obdOwner'); } catch {}
-      if (owner && owner !== u.uid) { await wipeLocal(); location.reload(); return; }
-      try { localStorage.setItem('obdOwner', u.uid); } catch {}
-      await pushPending();
-      const n = await pullAll();
-      if (n) { toastFn(`${n} yolculuk hesabınızdan yüklendi`); location.reload(); }
+      // Girişten önce yapılan yerel (deneme) veriler hesaba karışmasın: bu tarayıcı bu hesaba ilk kez bağlanırken temizlenir
+      if (owner !== u.uid) {
+        await wipeLocal();
+        try { localStorage.setItem('obdOwner', u.uid); } catch {}
+        const a = await pullAll(), b = await pullRecs();
+        if (a || b) toastFn(`${a} yolculuk, ${b} kayıt hesabınızdan yüklendi`);
+        location.reload(); return;
+      }
+      await pushPending(); await pushRecs();
+      const n = await pullAll(), r = await pullRecs();
+      if (n || r) { toastFn(`${n} yolculuk, ${r} kayıt hesabınızdan yüklendi`); location.reload(); }
     } catch (e) { toastFn('Eşitleme hatası: ' + (e.code || e.message), true); }
   });
 }

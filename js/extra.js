@@ -1,11 +1,11 @@
-import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=28';
-import { dtcDescribe } from './dtc.js?v=28';
-import { drawBars, drawLine, drawCombo } from './charts.js?v=28';
-import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=28';
-import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=28';
-import { PerfEngine, TESTS } from './perf.js?v=28';
-import { removeRemote } from './cloud.js?v=28';
-import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=28';
+import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=29';
+import { dtcDescribe } from './dtc.js?v=29';
+import { drawBars, drawLine, drawCombo } from './charts.js?v=29';
+import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=29';
+import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=29';
+import { PerfEngine, TESTS } from './perf.js?v=29';
+import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=29';
+import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=29';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -508,7 +508,7 @@ export function initExtra(ctx) {
       id: rec.start, start: rec.start, dur: rec.rows[rec.rows.length - 1][0], count: rec.rows.length,
       keys: rec.keys, names: rec.keys.map((k) => PID_BY_KEY[k].name), units: rec.keys.map((k) => PID_BY_KEY[k].unit),
     };
-    try { await recSave(meta, rec.rows); toast('Kayıt saklandı'); } catch (e) { toast('Kayıt saklanamadı: ' + e.message, true); }
+    try { await recSave(meta, rec.rows); toast('Kayıt saklandı'); pushRecs(); } catch (e) { toast('Kayıt saklanamadı: ' + e.message, true); }
     rec.rows = [];
     refreshRecList();
   }
@@ -523,7 +523,7 @@ export function initExtra(ctx) {
   $('#recList').addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
     const id = +b.dataset.id, m = S.recMeta[id];
-    if (b.dataset.a === 'del') { if (confirm('Kayıt silinsin mi?')) { await recDelete(id); if (viewing === id) $('#recView').classList.add('hidden'); refreshRecList(); } }
+    if (b.dataset.a === 'del') { if (confirm('Kayıt silinsin mi?')) { await recDelete(id); removeRemoteRec(id); if (viewing === id) $('#recView').classList.add('hidden'); refreshRecList(); } }
     else if (b.dataset.a === 'csv') {
       const rows = await recRows(id);
       const head = ['sure_sn', ...m.names.map((n, i) => `${n} (${m.units[i]})`)];

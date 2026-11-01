@@ -73,6 +73,10 @@ export async function recRows(id) {
   const d = await db();
   return (await req(d.transaction('rows').objectStore('rows').get(id)))?.rows || [];
 }
+export async function recClear() {
+  const d = await db();
+  await tx(d, ['meta', 'rows'], 'readwrite', (t) => { t.objectStore('meta').clear(); t.objectStore('rows').clear(); });
+}
 export async function recDelete(id) {
   const d = await db();
   await tx(d, ['meta', 'rows'], 'readwrite', (t) => { t.objectStore('meta').delete(id); t.objectStore('rows').delete(id); });

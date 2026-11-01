@@ -36,7 +36,7 @@ Kurulum (bir kez):
 ```
 rules_version = '2';
 service cloud.firestore { match /databases/{db}/documents {
-  match /users/{uid}/trips/{id} { allow read, write: if request.auth != null && request.auth.uid == uid; }
+  match /users/{uid}/{document=**} { allow read, write: if request.auth != null && request.auth.uid == uid; }
 } }
 ```
 4. Proje ayarları → Web uygulaması ekle → `apiKey, authDomain, projectId, appId` değerlerini `js/cloud-config.js` içine yaz, commit/push.
