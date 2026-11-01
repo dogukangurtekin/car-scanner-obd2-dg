@@ -1,11 +1,11 @@
-import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=38';
-import { dtcDescribe } from './dtc.js?v=38';
-import { drawBars, drawLine, drawCombo } from './charts.js?v=38';
-import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=38';
-import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=38';
-import { PerfEngine, TESTS } from './perf.js?v=38';
-import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=38';
-import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=38';
+import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=39';
+import { dtcDescribe } from './dtc.js?v=39';
+import { drawBars, drawLine, drawCombo } from './charts.js?v=39';
+import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=39';
+import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=39';
+import { PerfEngine, TESTS } from './perf.js?v=39';
+import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=39';
+import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=39';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -263,6 +263,11 @@ export function initExtra(ctx) {
       ['Ort. tüketim', cons(avgC)], ['Maliyet', money(tr.fuel * st().price)],
       ['CO₂ (ort.)', avgC != null ? (avgC * f.co2 * 10).toFixed(0) + ' g/km' : '—'],
       ['Maks. su sıc.', tr.cmax > -99 ? (() => { const [x, u] = conv('°C', tr.cmax, st()); return x.toFixed(0) + ' ' + u; })() : '—'],
+      ['Rakım', (() => {
+        const t = now(), fresh = (k) => (S.latest[k] && t - S.latest[k].t < 15 ? S.latest[k].v : null);
+        const g = fresh('gpsAlt'), b = fresh('33h');
+        return g != null ? Math.round(g) + ' m <small>GPS</small>' : b != null ? '~' + Math.round(b) + ' m <small>barometrik</small>' : '—';
+      })()],
     ];
     const box = (n, v) => `<div class="card kpi"><div class="n">${n}</div><div class="v">${v}</div></div>`;
     $('#kpis').innerHTML = kp.map(([n, v]) => box(n, v)).join('');

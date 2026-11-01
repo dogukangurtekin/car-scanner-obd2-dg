@@ -1,13 +1,13 @@
-import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=38';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=38';
-import { ELM } from './elm.js?v=38';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=38';
-import { dtcDescribe } from './dtc.js?v=38';
-import { drawGauge, drawLine } from './charts.js?v=38';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=38';
-import { saveTrip, tserSave } from './store.js?v=38';
-import { initExtra } from './extra.js?v=38';
-import { initCloud, pushPending } from './cloud.js?v=38';
+import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=39';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=39';
+import { ELM } from './elm.js?v=39';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=39';
+import { dtcDescribe } from './dtc.js?v=39';
+import { drawGauge, drawLine } from './charts.js?v=39';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=39';
+import { saveTrip, tserSave } from './store.js?v=39';
+import { initExtra } from './extra.js?v=39';
+import { initCloud, pushPending } from './cloud.js?v=39';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
