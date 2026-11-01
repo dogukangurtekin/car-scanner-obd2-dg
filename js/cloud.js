@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=27';
-import { loadTrips, saveTrip, tserGet, tserSave } from './store.js?v=27';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=28';
+import { loadTrips, saveTrip, clearTrips, tserGet, tserSave, tserClear } from './store.js?v=28';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -23,6 +23,12 @@ function ui() {
     b.textContent = 'G  Google ile giriş';
     b.title = configured ? 'Google ile giriş yap: yolculuklarınız hesabınıza kaydedilir' : 'Google girişi henüz yapılandırılmadı';
   }
+}
+
+async function wipeLocal() {
+  clearTrips();
+  try { await tserClear(); } catch {}
+  try { localStorage.removeItem('obdOwner'); } catch {}
 }
 
 export async function pushPending() {
@@ -76,7 +82,14 @@ export async function initCloud({ toast, onChange }) {
     if (!configured) return toast('Google girişi için js/cloud-config.js içine Firebase ayarları girilmeli (README).', true);
     try {
       if (!A) await load();
-      if (user) { await A.signOut(auth); return; }
+      if (user) {
+        // Ortak tarayıcıda bir sonraki kişi bu hesabın yolculuklarını görmesin: önce buluta gönder, sonra yerelden temizle
+        await pushPending();
+        await wipeLocal();
+        await A.signOut(auth);
+        location.reload();
+        return;
+      }
       // iOS/Safari (Bluefy dahil) açılır pencereyi sekme olarak açıp oturum bilgisini kaybeder: aynı sekmede yönlendirme kullan
       const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       const prov = new A.GoogleAuthProvider();
@@ -100,6 +113,10 @@ async function load() {
     if (!u) return;
     toastFn('Giriş yapıldı: ' + (u.displayName || u.email));
     try {
+      // Bu tarayıcıdaki yerel kayıtlar başka bir hesaba aitse karışmasın
+      let owner = null; try { owner = localStorage.getItem('obdOwner'); } catch {}
+      if (owner && owner !== u.uid) { await wipeLocal(); location.reload(); return; }
+      try { localStorage.setItem('obdOwner', u.uid); } catch {}
       await pushPending();
       const n = await pullAll();
       if (n) { toastFn(`${n} yolculuk hesabınızdan yüklendi`); location.reload(); }
