@@ -1,3 +1,5 @@
 .claude/
 *.log
 fuel-prices.json
+__pycache__/
+*.pyc
