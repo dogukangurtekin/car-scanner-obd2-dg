@@ -13,6 +13,7 @@ function opet($path)
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 12, CURLOPT_ENCODING => '', CURLOPT_USERAGENT => 'Mozilla/5.0']);
     $body = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $GLOBALS['dbg'] = ['http' => $code, 'err' => curl_error($ch), 'curl' => function_exists('curl_version') ? curl_version()['version'] : null, 'head' => is_string($body) ? substr($body, 0, 120) : null];
     curl_close($ch);
     if ($body !== false && $code === 200 && json_decode($body) !== null) { @file_put_contents($cache, $body); return $body; }
     if (is_file($cache)) return file_get_contents($cache); // servis yanıt vermezse eski değer
@@ -29,7 +30,7 @@ $prov = (int)($_GET['province'] ?? 34);
 if ($prov < 1 || $prov > 81 && $prov !== 934) { http_response_code(400); echo '{"error":"geçersiz il"}'; exit; }
 $b = opet('prices?ProvinceCode=' . $prov);
 $rows = $b ? json_decode($b, true) : null;
-if (!$rows) { http_response_code(502); echo '{"error":"kaynak yanıt vermedi"}'; exit; }
+if (!$rows) { http_response_code(502); echo json_encode(['error' => 'kaynak yanıt vermedi', 'debug' => $GLOBALS['dbg'] ?? null], JSON_UNESCAPED_UNICODE); exit; }
 
 // ilçelere göre değişebilir: ilin ilçe fiyatlarının ortancası
 $by = [];
