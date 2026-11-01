@@ -38,6 +38,7 @@ export const PIDS = [
   { id: '31', name: 'Silme Sonrası Mesafe', unit: 'km', min: 0, max: 5000, f: (a, b) => a * 256 + b, grp: 'Araç' },
   { id: '32', name: 'EVAP Sistem Buhar Basıncı', unit: 'Pa', min: -8000, max: 8000, dec: 0, f: (a, b) => (((a * 256 + b) << 16) >> 16) / 4, grp: 'Emisyon' },
   { id: '33', name: 'Barometrik Basınç', unit: 'kPa', min: 60, max: 110, dec: 0, f: (a) => a, grp: 'Hava' },
+  { id: '33', key: '33h', name: 'Tahmini Rakım (barometrik)', unit: 'm', min: 0, max: 3000, dec: 0, f: (a) => 44330 * (1 - Math.pow(a / 101.325, 0.1903)), grp: 'Hava' },
   { id: '34', key: '34', name: 'Lambda B1S1 (akım tipi)', unit: 'λ', min: 0.6, max: 1.6, f: (a, b) => (a * 256 + b) * 2 / 65536, grp: 'Lambda' },
   { id: '34', key: '34i', name: 'Lambda B1S1 Akımı', unit: 'mA', min: -128, max: 128, dec: 2, f: (a, b, c, d) => (c * 256 + d) / 256 - 128, grp: 'Lambda' },
   { id: '3C', name: 'Katalizör Sıcaklığı B1S1', unit: '°C', min: -40, max: 900, dec: 0, f: (a, b) => (a * 256 + b) / 10 - 40, grp: 'Sıcaklık' },
