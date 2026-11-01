@@ -1,6 +1,6 @@
 // Google ile giriş + yolculuk istatistiklerini kullanıcı hesabına (Firestore) yedekleme
-import { FIREBASE_CONFIG } from './cloud-config.js?v=24';
-import { loadTrips, saveTrip, tserGet, tserSave } from './store.js?v=24';
+import { FIREBASE_CONFIG } from './cloud-config.js?v=25';
+import { loadTrips, saveTrip, tserGet, tserSave } from './store.js?v=25';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (s) => document.querySelector(s);
@@ -77,7 +77,10 @@ export async function initCloud({ toast, onChange }) {
     try {
       if (!A) await load();
       if (user) { await A.signOut(auth); return; }
-      await A.signInWithPopup(auth, new A.GoogleAuthProvider());
+      // iOS/Safari (Bluefy dahil) açılır pencereyi sekme olarak açıp oturum bilgisini kaybeder: aynı sekmede yönlendirme kullan
+      const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const prov = new A.GoogleAuthProvider();
+      if (ios) await A.signInWithRedirect(auth, prov); else await A.signInWithPopup(auth, prov);
     } catch (e) {
       if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') toast('Giriş yapılamadı: ' + (e.code || e.message), true);
     }
@@ -91,6 +94,7 @@ async function load() {
   A = a; F = f;
   auth = a.getAuth(app.initializeApp(FIREBASE_CONFIG));
   fs = f.getFirestore(auth.app);
+  a.getRedirectResult(auth).catch((e) => toastFn('Giriş yapılamadı: ' + (e.code || e.message), true));
   a.onAuthStateChanged(auth, async (u) => {
     user = u; ui();
     if (!u) return;

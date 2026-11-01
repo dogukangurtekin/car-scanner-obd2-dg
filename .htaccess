@@ -3,3 +3,9 @@
 Header set Cache-Control "no-cache, must-revalidate"
 </FilesMatch>
 </IfModule>
+
+# Firebase Auth yardımcı sayfaları aynı alan adından (iOS/Safari için gerekli)
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^__/(.+)$ proxy-fb.php?p=$1 [L,QSA]
+</IfModule>
