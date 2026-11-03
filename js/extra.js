@@ -1,11 +1,11 @@
-import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=40';
-import { dtcDescribe } from './dtc.js?v=40';
-import { drawBars, drawLine, drawCombo } from './charts.js?v=40';
-import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=40';
-import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=40';
-import { PerfEngine, TESTS } from './perf.js?v=40';
-import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=40';
-import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=40';
+import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=41';
+import { dtcDescribe } from './dtc.js?v=41';
+import { drawBars, drawLine, drawCombo } from './charts.js?v=41';
+import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=41';
+import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=41';
+import { PerfEngine, TESTS } from './perf.js?v=41';
+import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=41';
+import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=41';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -319,7 +319,7 @@ export function initExtra(ctx) {
     const live = !!S.running && id === S.trip.id;
     const x = live ? { ...S.trip, price: st().price, cur: st().cur, car: prof().name } : loadTrips().find((t) => t.id === id);
     if (!x) return;
-    const ser = live ? { iv: S.trip.ser.iv, d: S.trip.ser.d.slice() } : await tserGet(id).catch(() => null);
+    const ser = live ? { iv: S.trip.ser.iv, d: S.trip.ser.d.slice(), cols: S.trip.ser.cols.slice() } : await tserGet(id).catch(() => null);
     detail = { x, ser, live };
     renderDetail();
     $('#tripDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });

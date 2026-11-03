@@ -1,5 +1,5 @@
-import { PIDS, STATUS_PID } from './pids.js?v=40';
-import { decodeDtcs } from './dtc.js?v=40';
+import { PIDS, STATUS_PID } from './pids.js?v=41';
+import { decodeDtcs } from './dtc.js?v=41';
 
 const clean = (l) => l.replace(/^\d+:/, '').replace(/\s+/g, '').toUpperCase();
 const hexBytes = (s) => (s.match(/../g) || []).map((h) => parseInt(h, 16));
