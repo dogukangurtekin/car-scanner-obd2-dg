@@ -1,13 +1,13 @@
-import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=41';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=41';
-import { ELM } from './elm.js?v=41';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=41';
-import { dtcDescribe } from './dtc.js?v=41';
-import { drawGauge, drawLine } from './charts.js?v=41';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=41';
-import { saveTrip, tserSave } from './store.js?v=41';
-import { initExtra } from './extra.js?v=41';
-import { initCloud, pushPending } from './cloud.js?v=41';
+import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=42';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=42';
+import { ELM } from './elm.js?v=42';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=42';
+import { dtcDescribe } from './dtc.js?v=42';
+import { drawGauge, drawLine } from './charts.js?v=42';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=42';
+import { saveTrip, tserSave } from './store.js?v=42';
+import { initExtra } from './extra.js?v=42';
+import { initCloud, pushPending } from './cloud.js?v=42';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -147,10 +147,14 @@ function persistTrip() {
 
 // ---------- veri girişi ----------
 // Adaptör/ECU kaynaklı tek örnek sıçramalarını eler: mutlak sınır + ardışık ikinci örnek doğrulaması
-const JUMP = { '0C': 3500, '0D': 45 };
+const JUMP = { '0C': 3500, '0D': 30, '05': 15 };
 S.pend = {};
 function accept(key, v, t) {
   if (key === '0C' && (v > 8500 || (v < 100 && (S.latest['0D']?.v ?? 0) > 10 && (S.latest['0C']?.v ?? 0) > 500))) return false;
+  // Fiziksel olarak imkânsız değerler (adaptör/ECU yanıtı karışması): su >130 °C, MIL mesafesi 0x8000, gaz kapalıyken emme basıncı barometrenin çok üstünde
+  if (key === '05' && (v > 130 || v < -40)) return false;
+  if (key === '21' && v >= 32768) return false;
+  if (key === '0B' && v > (S.latest['33']?.v ?? 101) + 8 && (S.latest['11']?.v ?? 100) < 40) return false;
   const j = JUMP[key], prev = S.latest[key];
   if (j && prev && t - prev.t < 3) {
     if (Math.abs(v - prev.v) > j) {
