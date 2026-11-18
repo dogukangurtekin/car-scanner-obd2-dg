@@ -61,6 +61,17 @@ export class BleTransport {
     }
     if (lastErr) throw lastErr;
     this.dev.addEventListener('gattserverdisconnected', () => this.onClose());
+    this.svc = svc;
+    await this._link();
+  }
+  // Seçilmiş cihaza (kullanıcı hareketi gerekmeden) yeniden bağlanır; arka plana alınıp geri gelinen durumlarda kullanılır
+  async reconnect() {
+    if (!this.dev) throw new Error('Cihaz yok');
+    try { this.dev.gatt.disconnect(); } catch {}
+    await this._link();
+  }
+  async _link() {
+    const svc = this.svc;
     this.step = 'GATT bağlantısı';
     const server = await this.dev.gatt.connect();
     let rx = null, tx = null;

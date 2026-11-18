@@ -1,13 +1,13 @@
-import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=42';
-import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=42';
-import { ELM } from './elm.js?v=42';
-import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=42';
-import { dtcDescribe } from './dtc.js?v=42';
-import { drawGauge, drawLine } from './charts.js?v=42';
-import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=42';
-import { saveTrip, tserSave } from './store.js?v=42';
-import { initExtra } from './extra.js?v=42';
-import { initCloud, pushPending } from './cloud.js?v=42';
+import { PIDS, GPS_PID, PID_BY_ID, PID_BY_KEY, STATUS_PID, DEFAULT_CHARTS, EXTRA_NAMES, alertOf } from './pids.js?v=43';
+import { SerialTransport, BleTransport, SimTransport } from './transport.js?v=43';
+import { ELM } from './elm.js?v=43';
+import { decodeVin, carLabel, lookupNhtsa } from './vin.js?v=43';
+import { dtcDescribe } from './dtc.js?v=43';
+import { drawGauge, drawLine } from './charts.js?v=43';
+import { loadSettings, saveSettings, activeProfile, conv, show, fuelFlowLps } from './calc.js?v=43';
+import { saveTrip, tserSave } from './store.js?v=43';
+import { initExtra } from './extra.js?v=43';
+import { initCloud, pushPending } from './cloud.js?v=43';
 
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -238,7 +238,7 @@ async function connect() {
     const stepTimer = setInterval(() => tr.step && dbg('adım: ' + tr.step), 700);
     try { await tr.open(); } finally { clearInterval(stepTimer); }
     dbg('open() tamam, ELM başlatılıyor');
-    tr.onClose = () => { if (S.running) { toast('Bağlantı koptu', true); disconnect(true); } };
+    tr.onClose = () => { if (S.running) keepAlive(tr); };
     const sup = await S.elm.init({ protocol: $('#selProto').value, fast: $('#selFast').value === '1' });
     S.defs = PIDS.filter((p) => sup.has(p.id));
     if (!S.defs.length) throw new Error('Araç hiçbir standart PID bildirmedi.');
@@ -274,6 +274,29 @@ async function connect() {
     $('#stConn').textContent = 'Bağlı değil';
   } finally { $('#btnConn').disabled = false; }
 }
+
+// BLE bağlantısı koparsa (ör. iPhone'da Bluefy arka plana alınınca) yeniden bağlanmayı dene; olmazsa oturumu kapat
+let reconnecting = false;
+async function keepAlive(tr) {
+  if (!tr.reconnect) { toast('Bağlantı koptu', true); disconnect(true); return; }
+  if (reconnecting) return;
+  reconnecting = true;
+  toast('Bağlantı koptu, yeniden bağlanılıyor…', true);
+  $('#stConn').textContent = 'Yeniden bağlanıyor…';
+  const t0 = Date.now();
+  try {
+    while (S.running && Date.now() - t0 < 120000) {
+      try {
+        await tr.reconnect();
+        $('#stConn').textContent = 'Bağlı';
+        toast('Yeniden bağlandı');
+        return;
+      } catch (e) { dbg('yeniden bağlanma: ' + (e.message || e)); await new Promise((r) => setTimeout(r, 2000)); }
+    }
+    if (S.running) { toast('Bağlantı kurulamadı', true); disconnect(true); }
+  } finally { reconnecting = false; }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.running && S.elm?.t?.reconnect && S.elm.t.dev && !S.elm.t.dev.gatt.connected) keepAlive(S.elm.t); });
 
 function startGps() {
   stopGps();
