@@ -1,11 +1,11 @@
-import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=43';
-import { dtcDescribe } from './dtc.js?v=43';
-import { drawBars, drawLine, drawCombo } from './charts.js?v=43';
-import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=43';
-import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=43';
-import { PerfEngine, TESTS } from './perf.js?v=43';
-import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=43';
-import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=43';
+import { PIDS, PID_BY_KEY, PID_BY_ID } from './pids.js?v=44';
+import { dtcDescribe } from './dtc.js?v=44';
+import { drawBars, drawLine, drawCombo } from './charts.js?v=44';
+import { conv, consConv, show, activeProfile, fuelFlowLps, estimateHp, FUEL, DEFAULT_PROFILE } from './calc.js?v=44';
+import { decodeReadiness, decodeMode06, MID_NAMES } from './monitors.js?v=44';
+import { PerfEngine, TESTS } from './perf.js?v=44';
+import { removeRemote, removeRemoteRec, pushRecs } from './cloud.js?v=44';
+import { loadTrips, clearTrips, deleteTrip, tserGet, tserDelete, tserClear, SER_LEGACY, loadPerf, savePerf, recSave, recList, recRows, recDelete } from './store.js?v=44';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dur = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;

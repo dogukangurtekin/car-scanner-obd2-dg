@@ -1,6 +1,6 @@
-import { KW1281, KWError, MODULES, vagToP, decodeValue } from './kw1281.js?v=43';
-import { KLineSerial } from './kwio.js?v=43';
-import { snapSave, snapList, snapDelete } from './store.js?v=43';
+import { KW1281, KWError, MODULES, vagToP, decodeValue } from './kw1281.js?v=44';
+import { KLineSerial } from './kwio.js?v=44';
+import { snapSave, snapList, snapDelete } from './store.js?v=44';
 
 const $ = (s) => document.querySelector(s);
 const hex = (n) => n.toString(16).toUpperCase().padStart(2, '0');
